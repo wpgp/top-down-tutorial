@@ -93,7 +93,7 @@ predict_admin3 <- master_predict %>%
   group_by(geo_code) %>% # order the list by geo_code
   group_split() 
 
-# Create vector of admin 3 pop sorted by admin3 code
+# Create vector of admin 3 pop sorted by admin3 code and present in master_predict
 admin3_pop <- master_train %>% 
   select(
     geo_code, pop
@@ -105,10 +105,8 @@ admin3_pop <- master_train %>%
       summarise(admin3_withPop=T)
   ) %>% 
   filter(
-    !is.na(admin3_pop)
-  )
-
-%>% select(pop) %>% unlist()
+    !is.na(admin3_withPop)
+  ) %>% select(pop) %>% unlist()
 
 # Run predictions in parallel
 co <- detectCores()-2
