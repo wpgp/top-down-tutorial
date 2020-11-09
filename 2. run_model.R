@@ -99,14 +99,7 @@ admin3_pop <- master_train %>%
     geo_code, pop
   ) %>% 
   arrange(geo_code) %>% 
-  left_join(
-    master_predict %>% 
-      group_by(geo_code) %>% 
-      summarise(admin3_withPop=T)
-  ) %>% 
-  filter(
-    !is.na(admin3_withPop)
-  ) %>% select(pop) %>% unlist()
+  select(pop) %>% unlist()
 
 # Run predictions in parallel
 co <- detectCores()-2
@@ -145,7 +138,7 @@ predictions <- do.call("rbind", lapply(predictions_list,
 toc() #300 sec
 
 # Join predictions to EA vector dataset
-test <- EA_poly %>% 
+EA_poly <- EA_poly %>% 
   left_join(predictions, by=c('EZ_id'='EA_id'))
 
 st_write(EA_poly, paste0(output_path, 'EA_predict_poly.gpkg'))
@@ -156,5 +149,13 @@ st_write(EA_poly, paste0(output_path, 'EA_predict_poly.gpkg'))
 predictions_admin3 <- predictions %>% 
   group_by(geo_code) %>% 
   summarise(
-    pop= sum(pop)
+    pop_predicted= sum(pop)
+  ) %>% 
+  left_join(
+    master_train %>% 
+      select(geo_code, pop)
+  ) %>% 
+  mutate(
+    diff = pop-pop_predicted
   )
+summary(predictions_admin3$diff)
