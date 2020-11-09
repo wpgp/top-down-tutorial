@@ -1,0 +1,221 @@
+---
+title: "Top-down disaggregation Tutorials"
+author: "WorldPop, University of Southampton"
+always_allow_html: true
+header-includes:
+   - \usepackage{amsmath}
+output:
+  github_document:
+    toc: true
+geometry: margin=2.1cm
+documentclass: article
+bibliography: [book.bib]
+biblio-style: apalike
+---
+
+```{r}
+knitr::opts_chunk$set(message = FALSE, echo = T, warning = FALSE, eval = FALSE)
+
+```
+
+# Introduction
+
+This tutorial aims at explaining the methods behind top-down census disagregation .
+
+The purpose of top-down disagregation is to estimate people count at a lower resolution than available census totals. In this tutorial we will be using as input data municipios projections from the Brazilian Stats Office [CITATION] that is admin 3 population totals and we will predict population at the census enumerations level. See figure \@ref{fig:boundaries} for a depiction of the structure.
+
+<!--# refine figure with population totals and real datasets -->
+
+[![](img/boundaries.png "Example of enumeration area boundaries in Brazil")](boundaries)
+
+# Methods Overview
+
+## Modelling process
+
+<!--# creating a schema with input data, estimation step, predicted density, totals redistribution -->
+
+## Random Forest
+
+# Environment setup
+
+For running the model we will need mainly the `randomForest` package
+
+```{r}
+
+library(tictoc) # compute running time
+library(tidyverse) # manipulating dataframes
+library(randomForest) # estimating randomo forest model
+library(data.table) # fast dataframe writing
+library(doParallel) # processing in parallel
+library(sf) # manipulating vector GIS file
+
+
+drive_path <- "//worldpop.files.soton.ac.uk/worldpop/Projects/WP517763_GRID3/Working/git/top-down-tutorial/"
+data_path <- paste0(drive_path, "in/")
+output_path <- paste0(drive_path, "out/")
+
+# Previously built datasets
+master_train <- read.csv(paste0(output_path, "master_train.csv"))
+master_predict <-read.csv(paste0(output_path, "master_predict.csv"))
+```
+
+# Implementation
+
+## Preparing the input data
+
+First we prepare the response variable `y_data`.
+
+```{r}
+y_data <- master_train$pop
+y_data <- log(y_data)
+
+```
+
+Then we prepare the covariates
+
+```{r}
+names <- colnames(master_train)
+cov_names <- names[grepl('mean', names)] # here we select all preprocessed covariates as predictors
+x_data <- master_train %>% 
+  select(all_of(cov_names))
+```
+
+## Fitting the model
+
+We train the model. For that purpose we use the function `tuneRF` blabla on the options + parametrizing as in Bondarenko and al
+
+```{r}
+tic()
+popfit <- tuneRF(x=x_data, 
+                     y=y_data, 
+                     plot=TRUE, 
+                     mtryStart=length(x_data)/3, 
+                     ntreeTry=length(y_data)/20, 
+                     improve=0.0001, 
+                     stepFactor=1.20, 
+                     trace=TRUE, 
+                     doBest=TRUE, 
+                     nodesize=length(y_data)/1000, 
+                     na.action=na.omit, 
+                     importance=TRUE, 
+                     proximity=T, 
+                     sampsize=min(c(length(y_data), 1000)), 
+                     replace=TRUE) 
+toc()#90sec
+
+```
+
+## Predicting the population count
+
+```{r}
+
+predict_pop <- function(df, census, model=popfit){
+  
+  # Apply model on EA dataset
+  prediction_set <- predict(model, 
+                            newdata=df, 
+                            predict.all=TRUE)
+  
+  # Predict density
+  output <- data.frame(density= exp(apply(prediction_set$individual, MARGIN=1, mean)))
+  
+  # Disaggregate admin3 totals
+  output$pop <- (output$density/sum(output$density))*census
+  output$density <- NULL
+  
+  # Add ids
+  output$geo_code <- df$geo_code
+  output$EA_id <- df$EA_id
+  
+  #Write output
+  fwrite(output, paste0(output_path, "/predictions/predictions_",
+                        df$geo_code[1], ".csv"))
+}
+
+# Create a list of EAs per admin3 for parallel processing
+predict_admin3 <- master_predict %>% 
+  arrange(geo_code) %>% 
+  group_by(geo_code) %>% # order the list by geo_code
+  group_split() 
+
+# Create vector of admin 3 pop sorted by admin3 code and present in master_predict
+admin3_pop <- master_train %>% 
+  select(
+    geo_code, pop
+  ) %>% 
+  arrange(geo_code) %>% 
+  select(pop) %>% unlist()
+
+# Run predictions in parallel
+co <- detectCores()-2
+tic()
+cl <- makeCluster(co)
+registerDoParallel(cl)
+predicted <- NULL
+predicted <- foreach(
+  i=1:length(predict_admin3), 
+  .packages=c("tidyverse", "data.table", "randomForest")) %dopar% {
+    predict_pop(
+      predict_admin3[[i]],
+      admin3_pop[[i]]
+    )
+  } 
+
+stopCluster(cl)
+toc() #109sec
+
+
+```
+
+# Models Checks
+
+## Checking the prediction
+
+```{r}
+predictions_admin3 <- predictions %>% 
+  group_by(geo_code) %>% 
+  summarise(
+    pop_predicted= sum(pop)
+  ) %>% 
+  left_join(
+    master_train %>% 
+      select(geo_code, pop)
+  ) %>% 
+  mutate(
+    diff = pop-pop_predicted
+  )
+summary(predictions_admin3$diff)
+```
+
+## Assessing the goodness-of-fit
+
+speach on the metrics
+
+```{r}
+print(popfit) # for goodness-of-fit metrics
+
+```
+
+We can then look at the prediction power of the different covairates. explaining %mse.
+
+```{r}
+varImpPlot(popfit, type=1) # for variable importance
+
+```
+
+We then display the in-sample goodnes-of -fit of the prediction
+
+```{r}
+# In-sample goodness-of-fit plot
+plot(y_data, (y_data - predict(popfit)), main='Residuals vs Observed')
+abline(a=0, b=0, lty=2)
+
+plot(y_data,predict(popfit), main='Predicted vs Observed')
+abline(a=0, b=1, lty=2)
+
+
+```
+
+# Contributions
+
+# References
