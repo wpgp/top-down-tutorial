@@ -106,15 +106,27 @@ master_predict <- master_predict %>%
 admin3_withPop <- master_train %>% 
   select(geo_code) %>%
   mutate(
-    admin3_withPop =T
+    admin3_2007 =T
+  ) %>% 
+  left_join(
+    master_predict %>% 
+      group_by(geo_code) %>% 
+      summarise(admin3_2012=T)
   )
 
 master_predict <- master_predict %>% 
   left_join(
     admin3_withPop
   ) %>%
-  filter(!is.na(admin3_withPop)) %>% 
-  select(-admin3_withPop)
+  filter(!is.na(admin3_2012)&!is.na(admin3_2007)) %>% 
+  select(-starts_with('admin'))
+
+master_train <- master_train %>% 
+  left_join(
+    admin3_withPop
+  ) %>%
+  filter(!is.na(admin3_2012)&!is.na(admin3_2007)) %>% 
+  select(-starts_with('admin'))
   
 # 5. Save outputs ---------------------------------------------------------
 
