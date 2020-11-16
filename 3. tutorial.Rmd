@@ -1,19 +1,14 @@
 ---
 title: "Top-down disaggregation Tutorials"
 author: "WorldPop, University of Southampton"
-always_allow_html: true
 header-includes:
    - \usepackage{amsmath}
-output:
-  github_document:
-    toc: true
-geometry: margin=2.1cm
-documentclass: article
-bibliography: [book.bib]
+output: bookdown::html_document2
+bibliography: book.bib
 biblio-style: apalike
 ---
 
-```{r}
+```{r, echo=F}
 knitr::opts_chunk$set(message = FALSE, echo = T, warning = FALSE, eval = FALSE)
 
 ```
@@ -22,17 +17,26 @@ knitr::opts_chunk$set(message = FALSE, echo = T, warning = FALSE, eval = FALSE)
 
 This tutorial aims at explaining the methods behind top-down census disagregation .
 
-The purpose of top-down disagregation is to estimate people count at a lower resolution than available census totals. In this tutorial we will be using as input data municipios projections from the Brazilian Stats Office [CITATION] that is admin 3 population totals and we will predict population at the census enumerations level. See figure \@ref{fig:boundaries} for a depiction of the structure.
+The purpose of top-down disagregation is to estimate people count at a lower resolution than available census totals to tackle a demand increase for accurate and up-to-date sub-administrative units population distribution.
 
-<!--# refine figure with population totals and real datasets -->
+To do so, statistical models leverage the availability of ancillary geospatial covariates at a higher resolution. Relationship between population totals and geospatial covariates are estimated at a coarse level and then projected at a fine level using the spatial precision of the covariates. Worldpop developed a machine learning model based on the great prediction performance of random forests to project population count at the grid cell level [@stevens2015; @sorichetta2015].
 
-[![](img/boundaries.png "Example of enumeration area boundaries in Brazil")](boundaries)
+In this tutorial, we will focus on disagregating admin 3 population totals using municipios projections from the Brazilian Stats Office [CITATION] into census enumeration areas. See figure \@ref(fig:boundaries) for a display of the spatial scales.
+
+```{r boundaries, echo=F, eval=T, warning=T, fig.cap='Example of enumeration area boundaries in Brazil', out.width = "70%", fig.align="center"}
+
+knitr::include_graphics('img/boundaries.png')
+
+```
 
 # Methods Overview
 
 ## Modelling process
 
-<!--# creating a schema with input data, estimation step, predicted density, totals redistribution -->
+```{r schema, echo=F, eval=T, warning=T, fig.cap='Modelling Process', out.width = "100%", fig.align="center"}
+
+knitr::include_graphics('img/schema.jpg')
+```
 
 ## Random Forest
 
