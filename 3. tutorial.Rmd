@@ -17,11 +17,13 @@ knitr::opts_chunk$set(message = FALSE, echo = T, warning = FALSE, eval = FALSE)
 
 This tutorial aims at explaining the methods behind top-down census disagregation .
 
-The purpose of top-down disagregation is to estimate people count at a lower resolution than available census totals to tackle a demand increase for accurate and up-to-date sub-administrative units population distribution.
+The purpose of top-down disagregation is to estimate population counts at a lower spatial resolution than the available census totals to answer to the increasing demand for accurate and up-to-date sub-administrative population distribution.
 
-To do so, statistical models leverage the availability of ancillary geospatial covariates at a higher resolution. Relationship between population totals and geospatial covariates are estimated at a coarse level and then projected at a fine level using the spatial precision of the covariates. Worldpop developed a machine learning model based on the great prediction performance of random forests to project population count at the grid cell level [@stevens2015; @sorichetta2015].
+To do so, statistical models leverage the availability of ancillary geospatial covariates at a finer scale. Relationship between population totals and geospatial covariates are estimated at the coarse population input level. It is then projected at a fine level using the spatial precision of the covariates.
 
-In this tutorial, we will focus on disagregating admin 3 population totals using municipios projections from the Brazilian Stats Office [CITATION] into census enumeration areas. See figure \@ref(fig:boundaries) for a display of the spatial scales.
+WorldPop developed a machine learning model based on random forests to project population count at grid cell level [@stevens2015; @sorichetta2015].
+
+**In this tutorial**, we will adapt this method for **disagregating admin 3 population totals** using municipios projections from the Brazilian Stats Office [CITATION] **into census enumeration areas**. See figure \@ref(fig:boundaries) for a display of the two spatial scales.
 
 ```{r boundaries, echo=F, eval=T, warning=T, fig.cap='Example of enumeration area boundaries in Brazil', out.width = "70%", fig.align="center"}
 
@@ -33,6 +35,16 @@ knitr::include_graphics('img/boundaries.png')
 
 ## Modelling process
 
+The modelling process consists in three steps:
+
+1.  Estimate the relationship between population density and geospatial covariates at admin 3 level
+2.  Predict density at enumeration area level using the covariates
+3.  Use the densities as weighting layer to disagregate the admin 3 population count.
+
+The core product is the weighting layer that should be able to reflect the spatial distribution of the population inside the admin 3.
+
+**NB**: The modelling uses as response variable the log population density. The use of population density is to transform population count into a continuous variable easier to model and to have admin 3 observations more comparable across the country. The use of the logarithm ensures a more Gaussian distribution of the response variable, better inline with covariates distribution [@stevens2015].
+
 ```{r schema, echo=F, eval=T, warning=T, fig.cap='Modelling Process', out.width = "100%", fig.align="center"}
 
 knitr::include_graphics('img/schema.jpg')
@@ -40,42 +52,88 @@ knitr::include_graphics('img/schema.jpg')
 
 ## Random Forest
 
+The final goal of the statistical model is to predict correctly the population density. In the realm of machine learning, random forest model, an ensemble, non-parametric modeling aprroach growing a *forest* of individual regression trees [@breiman2001], has shown great predictive performance [@robnik-ikonja2004] for easy tuning process [@stevens2015].
+
+Another interesting feature of random forest model is its robustness to multi-scaled covariates and to multi-collinearity which is an argument to incorporate any covariates that is slightly related to population or that is a variation of an already integrated covariate, to ensure low signals is picked by the algorithm.
+
+However adding additional covariates might impact the running time especially at the prediction stage. This can be overcome by a preliminary step before prediction that discard covariates based on their ranking in covariates importance at the fitting stage. For more information please read Stevens and al [-@stevens2015] with implementation from Bondarenko and al [-@bondarenko2018].
+
+Finally, random forest allows to compute metrics on the covariates importance. Please bear in mind that the multi-collinearity will affect the magnitude of the covariates effect displayed but not the ranking [@genuer2010].
+
+To dive deeper on the subject of random forest, here some online material:
+
+-   A use-R 2009 conference [presentation](https://www.r-project.org/conferences/useR-2009/slides/Cutler.pdf) given by Cutler, Breiman's collaborator that helped on the development on random forest models
+
+-   A 2019 [blog post](https://towardsdatascience.com/understanding-random-forest-58381e0602d2) by Tony Yiu with clear explanations of the main features of random Forest namely *bagging* and *covariates randomness* that supports the creation of uncorrelated forest of decision trees.
+
+The implementation we will provide in this tutorial will follow guidance set up by Bondarenko and al [-@bondarenko2018].
+
 # Environment setup
 
-For running the model we will need mainly the `randomForest` package
+## R Packages
 
-```{r}
+For running the model we will need mainly the `randomForest` package [@cutler2018] that implements Breiman's algorithm in R.
 
-library(tictoc) # compute running time
-library(tidyverse) # manipulating dataframes
+```{r, eval=T}
 library(randomForest) # estimating randomo forest model
-library(data.table) # fast dataframe writing
+```
+
+Some administrative packages will also be used.
+
+```{r, eval=T}
+library(tictoc) # compute running time
 library(doParallel) # processing in parallel
+```
+
+And we add additional packages for data manipulation:
+
+```{r, eval=T}
+
+library(tidyverse) # manipulating dataframes
+library(data.table) # fast dataframe writing
 library(sf) # manipulating vector GIS file
+```
 
+## Loading data
 
-drive_path <- "//worldpop.files.soton.ac.uk/worldpop/Projects/WP517763_GRID3/Working/git/top-down-tutorial/"
+We set up directory paths that are based on a main directory called `top-down-tutorial` with two subfolders, `in` , where the input data are stored and `out`, where the output datasets will be stored.
+
+```{r, eval=T}
+drive_path <- "//worldpop.files.soton.ac.uk/worldpop/Projects/WP517763_GRID3/Working/git/top-down-tutorial/" # to be adapted
 data_path <- paste0(drive_path, "in/")
 output_path <- paste0(drive_path, "out/")
+```
 
+We load `master_train`, a dataframe that contains population projection and covariates summarized at admin 3 level.
+
+```{r, eval=F}
 # Previously built datasets
 master_train <- read.csv(paste0(output_path, "master_train.csv"))
-master_predict <-read.csv(paste0(output_path, "master_predict.csv"))
+head(master_train[, 12:15])
+
+```
+
+We load `master_predict`, a dataframe that contains the covariates summarized at enumeration areas level.
+
+```{r, eval=F}
+# Previously built datasets
+master_predict <- read.csv(paste0(output_path, "master_predict.csv"))
+head(master_predict)
 ```
 
 # Implementation
 
 ## Preparing the input data
 
-First we prepare the response variable `y_data`.
+First we prepare the response variable `y_data`, as the population count divided by the admin 3 area and then log-transform it.
 
 ```{r}
-y_data <- master_train$pop
+y_data <- master_train$pop/master_train$area
 y_data <- log(y_data)
 
 ```
 
-Then we prepare the covariates
+We extract the covariates from the `master_predict`. To identify which column is a covariate we use the terminology of the `exactextractr` R package that appends the word `mean` to the covariates summarized on the covariates processing step.
 
 ```{r}
 names <- colnames(master_train)
@@ -86,34 +144,64 @@ x_data <- master_train %>%
 
 ## Fitting the model
 
-We train the model. For that purpose we use the function `tuneRF` blabla on the options + parametrizing as in Bondarenko and al
+We first set up the model.
+
+A critical parameter in random forest is `mtry` , which is the number of randomly selected variables for evaluating the best split. This is where the randomness from the *random forest model* comes. To find its optimal value we use the function `tuneRF()` that compares different models based on their out-of-bag error estimate. The out-of-bag procedure consists in fitting each single tree on a sample of the dataset and evaluating the goodness-of-fit on the remaining observations. Sample size is defined by the `sampsize` parameter and sampling method is defined by the option `replace.`
+
+The other parameter specifications follow Bondarenko and al [-@bondarenko2018] guidance.
+
+-   **ntree**: Number of trees to grow. There is no issue of overfitting when adding additional trees. We opt for the number of observations divided by 20, which is around 275 trees in our setting.
+
+-   **importance**: If True, the model will calculate the feature importance for further analysis. We opt for True.
+
+-   **nodesize**: Minimum size of the terminal node of the trees. It controls the tree complexity. We make it dependent on the training data size: 1000th of it, which corresponds in our case approximately to the default value of 5.
 
 ```{r}
 tic()
 popfit <- tuneRF(x=x_data, 
-                     y=y_data, 
-                     plot=TRUE, 
-                     mtryStart=length(x_data)/3, 
-                     ntreeTry=length(y_data)/20, 
-                     improve=0.0001, 
-                     stepFactor=1.20, 
-                     trace=TRUE, 
-                     doBest=TRUE, 
-                     nodesize=length(y_data)/1000, 
-                     na.action=na.omit, 
-                     importance=TRUE, 
-                     proximity=T, 
-                     sampsize=min(c(length(y_data), 1000)), 
-                     replace=TRUE) 
+                 y=y_data, 
+                 plot=TRUE, 
+                 mtryStart=length(x_data)/3, 
+                 ntreeTry=length(y_data)/20, 
+                 improve=0.0001, # threshold on the OOB error to continue the search
+                 stepFactor=1.20, # incremental improvement of mtry
+                 trace=TRUE, 
+                 doBest=TRUE, # last model trained with the best mtry
+                 nodesize=length(y_data)/1000, 
+                 na.action=na.omit, 
+                 importance=TRUE, 
+                 sampsize=min(c(length(y_data), 1000)), # size of the sample to draw for OOB
+                 replace=TRUE) # sample with replacement
 toc()#90sec
 
+save(popfit, paste0(output_path, 'popfit.Rdata'))
 ```
 
 ## Predicting the population count
 
-```{r}
+Once the model is fitted at admin 3 level, we predict the population density at enumeration area level. These densities are then used as weight to disagregate admin 3 totals count.
 
+Here we do the two steps at once by writing the `predict_pop` function. It takes as input the subset of enumeration areas belonging to each admin 3 and the corresponding admin 3 total.
+
+The purpose of the setting is to run the predictions in parallel.
+
+We first create the subfolder `out/predictions` to store the enumeration area predictions.
+
+```{r}
+if(!dir.exists(paste0(output_path, 'predictions'))) dir.create(paste0(output_path, 'predictions'))
+
+```
+
+Then we define the `predict_pop` function.
+
+```{r}
 predict_pop <- function(df, census, model=popfit){
+  
+  '''
+  df: data.frame, enumeration area observations belonging to one admin 3
+  census: int, admin 3 total count
+  model: randomForest object
+  '''
   
   # Apply model on EA dataset
   prediction_set <- predict(model, 
@@ -135,13 +223,21 @@ predict_pop <- function(df, census, model=popfit){
   fwrite(output, paste0(output_path, "/predictions/predictions_",
                         df$geo_code[1], ".csv"))
 }
+```
 
+Once the function is written, we prepare a list that splits the `master_predict` into subsets where each subset contains all enumeration areas of given admin 3.
+
+```{r}
 # Create a list of EAs per admin3 for parallel processing
 predict_admin3 <- master_predict %>% 
   arrange(geo_code) %>% 
   group_by(geo_code) %>% # order the list by geo_code
   group_split() 
+```
 
+We create a vector of admin 3 population totals, sorted by `geo_code` to match the ordering of the `predict_admin3` list.
+
+```{r}
 # Create vector of admin 3 pop sorted by admin3 code and present in master_predict
 admin3_pop <- master_train %>% 
   select(
@@ -149,7 +245,11 @@ admin3_pop <- master_train %>%
   ) %>% 
   arrange(geo_code) %>% 
   select(pop) %>% unlist()
+```
 
+We run in parallel the predictions and save the output data.frame in folder `out/predictions`.
+
+```{r}
 # Run predictions in parallel
 co <- detectCores()-2
 tic()
@@ -168,12 +268,13 @@ predicted <- foreach(
 stopCluster(cl)
 toc() #109sec
 
-
 ```
 
 # Models Checks
 
 ## Checking the prediction
+
+First we need to check that the sum of the disagregated population counts does match the input census totals.
 
 ```{r}
 predictions_admin3 <- predictions %>% 
@@ -193,24 +294,28 @@ summary(predictions_admin3$diff)
 
 ## Assessing the goodness-of-fit
 
-speach on the metrics
-
-```{r}
-print(popfit) # for goodness-of-fit metrics
-
-```
-
-We can then look at the prediction power of the different covairates. explaining %mse.
+We can look at the covariates importance computed as the % of increase in out-of-bag mean squared errors when the variable is excluded from a tree split.
 
 ```{r}
 varImpPlot(popfit, type=1) # for variable importance
 
 ```
 
-We then display the in-sample goodnes-of -fit of the prediction
+Using the `print` function from the randomForest package displays two metrics that explore the out-of-bag prediction residuals:
+
+-   the mean squared residuals
+
+-   the % of variance explained which corresponds to the $R^2$.
 
 ```{r}
-# In-sample goodness-of-fit plot
+print(popfit) # for goodness-of-fit metrics
+
+```
+
+We can then plot the out-of-bag prediction residuals.
+
+```{r}
+# Out-of-bag goodness-of-fit plot
 plot(y_data, (y_data - predict(popfit)), main='Residuals vs Observed')
 abline(a=0, b=0, lty=2)
 
