@@ -49,28 +49,30 @@ toc() #30min
 cov_EA$EA_id <- EA_poly$EZ_id
 
 # Extract zonal statistics for every admin3
-
-
 tic()
 cov_admin3 <- exact_extract(raster_stack, admin3_poly, fun='mean', progress=T, force_df=T, stack_apply=T)
 toc() #27min
 cov_admin3$geo_code <- admin3_poly$CD_GEOCODI
 
-write.csv(cov_EA, paste0(output_path, "cov_EA.csv"))
+fwrite(cov_EA, paste0(output_path, "cov_EA.csv"))
 write.csv(cov_admin3, paste0(output_path, "cov_admin3.csv"))
 
 # 3. Create training dataset ----------------------------------------------
+admin3_poly$area <- st_area(admin3_poly) # in m2
 
 master_train <- cov_admin3 %>% 
-  right_join(pop_admin3 %>% 
-               mutate(
-                 geo_code = as.character(geo_code)
-               )) # six municipalities are not in the 2007 partition
+  left_join(
+    admin3_poly %>% 
+      st_drop_geometry() %>% 
+      rename(geo_code = CD_GEOCODI) %>% 
+      select(geo_code, area)
+  ) %>% 
+  right_join(pop_admin3) # six municipalities are not in the 2007 partition
 
 
 # 4. Create predicting dataset --------------------------------------------
 
-# Find corresponding admin 3
+# Find corresponding admin 3 
 admin3_poly <- admin3_poly %>% 
   mutate(
     CD_GEOCODI = as.integer(CD_GEOCODI)
@@ -88,7 +90,8 @@ master_predict <- EA_admin3 %>%
   mutate(geo_code = as.integer(mode)) %>% 
   select(-mode) %>% 
   right_join(
-    cov_EA # add covariates
+    cov_EA %>%  # add covariates
+      select(-V1)
   ) 
 
 apply(master_predict,2, function(x) sum(is.na(x)))
@@ -130,7 +133,7 @@ master_train <- master_train %>%
   
 # 5. Save outputs ---------------------------------------------------------
 
-write.csv(master_train, paste0(output_path, "master_train.csv"))
+fwrite(master_train, paste0(output_path, "master_train.csv"))
 fwrite(master_predict, paste0(output_path, "master_predict.csv"))
 
 
