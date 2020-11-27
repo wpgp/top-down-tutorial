@@ -2,3 +2,7 @@ wd
 tutorial/out
 tutorial/master_predict.csv
 tutorial/master_train.csv
+.Rhistory
+*.Rproj*
+*.qgz
+.Rproj.user
