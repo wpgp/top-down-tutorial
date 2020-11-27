@@ -52,7 +52,7 @@ The core product is the weighting layer that should reflect the spatial distribu
 knitr::include_graphics('dat/top-down-tutorial/schema.jpg')
 ```
 
-The final goal is to **predict the population density correctly** . In the realm of machine learning, random forest model, an ensemble, non-linear, non-parametric modeling approach growing a *forest* of individual regression trees [@breiman2001], has shown great predictive performance [@robnik-ikonja2004] for easy tuning process [@stevens2015].
+The final goal is to **predict the population density correctly**. In the realm of machine learning, random forest model, an ensemble, non-linear, non-parametric modeling approach growing a *forest* of individual regression trees [@breiman2001], has shown great predictive performance [@robnik-ikonja2004] for easy tuning process [@stevens2015].
 
 Another interesting feature of random forest model is **its robustness to multi-scaled covariates and to multi-collinearity**. To ensure that low signals are picked by the algorithm, we shall integrate any covariates that are only slightly related to population or meek variations of an another covariate.
 
@@ -72,7 +72,7 @@ The implementation we will provide in this tutorial will follow the guidance set
 
 # R Environment
 
-This model will be implemented in the R programming language [@r2020r]. Our first step is to setup the R environment so that it contains the R packages and data that we will need. The `randomForest` package [@law2018] implements the random forest algorithm in R. If you have not already installed it, then you will need to install it from the R console.
+This model will be implemented in the R programming language [@r2020r]. Our first step is to setup the R environment so that it contains the R packages and data that we will need. The `randomForest` package [@law2018] implements the random forest algorithm in R. If you have not already installed it, then you will need to install it.
 
 ```{r}
 install.packages('randomForest')
@@ -84,19 +84,23 @@ Once installed, you must load the `randomForest` package into your R environment
 library(randomForest)
 ```
 
-We will define our working directory within the R environment to be the location where we have stored the input data for the tutorial (`master_train.csv` and `master_predict.csv` described below). 
+We will define our working directory to be the location where we have stored the input data for the tutorial (`master_train.csv` and `master_predict.csv` described below). 
 
 ```{r}
 setwd('c:/myfolder')
 ```
 
 ## Source Data
+```{r, eval=T, echo=F, results=F}
+master_train <- read.csv("dat/top-down-tutorial/master_train.csv")
+master_predict <- read.csv("dat/top-down-tutorial/master_predict.csv")
+```
 
 This tutorial includes two input data sets, provided as csv spreadsheets (comma-seperate-values text files):  
 
-1. **master_train.csv** Training data for the model that contains population totals and covariate values for 5,562 municipalities in Brazil, and
+1. **master_train.csv** Training data for the model that contains population totals and covariate values for `r nrow(master_train)`  municipalities in Brazil, and
 
-2. **master_predict.csv** Prediction data for the model that contains covariate values for 444,045 enumeration areas where population estimates are needed.  
+2. **master_predict.csv** Prediction data for the model that contains covariate values for `r nrow(master_predict)` enumeration areas where population estimates are needed.  
 
 We will load the datasets into our R environment using the `read.csv` function and display their top ten rows with the `head` function:
 
@@ -104,20 +108,17 @@ We will load the datasets into our R environment using the `read.csv` function a
 
 # training data from municipalities
 master_train <- read.csv("master_train.csv")
-
-head(master_train[,1:5]) # only showing first five columns
-
 # covariates from enumeration areas
 master_predict <- read.csv("master_predict.csv")
 
+```
+
+```{r, eval=T}
+head(master_train[,1:5]) # only showing first five columns
+
 head(master_predict[,1:4]) # only showing first four columns
-
 ```
 
-```{r, eval=T, echo=F, results=F}
-master_train <- read.csv("dat/top-down-tutorial/master_train.csv")
-master_predict <- read.csv("dat/top-down-tutorial/master_predict.csv")
-```
 
 
 Notice that only the municipality-level dataset `master_train.csv` contains a column for population. The EA-level dataset does not contain a column for population, and it is the goal of this tutorial to estimate those EA-level populations based on the EA-level covariates in `master_predict.csv`.  
@@ -130,7 +131,7 @@ The `geo_code` column contains a numeric identifier for each municipality and wi
 
 1. Brazil's [municipality boundaries](https://www.ibge.gov.br/en/geosciences/territorial-organization/regional-division/23708-brazilian-territorial-division.html?=&t=o-que-e),  
 
-2. Brazil's [2007 census totals](https://biblioteca.ibge.gov.br/index.php/biblioteca-catalogo?view=detalhes&id=293420) for municipalities,  
+2. Brazil's [2020 census projections](https://www.ibge.gov.br/en/statistics/social/18448-population-estimates.html?=&t=resultados) for municipalities,  
 
 3. Brazil's [census EA boundaries](http://geoftp.ibge.gov.br/organizacao_do_territorio/malhas_territoriais/malhas_de_setores_censitarios__divisoes_intramunicipais/2019/Malha_de_setores_(shp)_Brasil/),   
 
@@ -155,7 +156,7 @@ y_data <- log(y_data)
 
 We use log population density as the response variable rather than population counts for two main reasons. First, population densities are more comparable than counts among spatial units of varying sizes (e.g. municipalities and EAs). Second, the logarithm transformation reshapes the response variable as a Gaussian distribution, better inline with the distributions of covariates [@stevens2015] (Fig. \@ref(fig:hist)).
 
-```{r hist, echo=F, eval=T, out.align="center", out.width="75%", fig.cap="Histogram of log-transformed population density."}
+```{r hist, echo=F, eval=T, out.align="center", out.width="75%", fig.cap="Histogram of the log-transformed population density."}
 hist(y_data, main=NA, xlab="log(population_density)")
 ```
 
@@ -198,7 +199,7 @@ A critical argument in `randomForest()` function is `mtry`, the number of random
 
 **Note:** Out-of-bag error is a form of cross-validation that is calculated by comparing model predictions to observed data from EAs that were randomly selected to be witheld from model fitting (i.e. held "out-of-bag") for an iteration of the model (i.e. a single regression tree in the random forest model).
 
-During each iteration of a random forest model, a regression tree is fit to a random sub-sample of the data. This prevents overfitting and also provides a built-in mechanism for cross-validation. The `sampsize` argument sets the sample size, and the `replace` argument defines the sampling strategy. In our case, we will define `sampsize` as the total count of observations (i.e. 5,562 municipalities) and `replace` will be `TRUE` to sample *with replacement* from the training data.
+During each iteration of a random forest model, a regression tree is fit to a random sub-sample of the data. This prevents overfitting and also provides a built-in mechanism for cross-validation. The `sampsize` argument sets the sample size, and the `replace` argument defines the sampling strategy. In our case, we will define `sampsize` as the total count of observations (i.e. `r nrow(master_train)`  municipalities) and `replace` will be `TRUE` to sample *with replacement* from the training data.
 
 Our specifications for other parameters followed Bondarenko et al. [-@bondarenko2018].
 
@@ -321,7 +322,7 @@ master_predict$predicted_pop <- with(master_predict, predicted_exp / predicted_e
 
 Notice that this line of code is equivalent to Eq. \@ref(eq:prediction).
 
-We have now disaggregated the population totals from 5,562 municipalities in Brazil into population estimates for 444,045 enumeration areas (Fig. \@ref(fig:in-out)).
+We have now disaggregated the population totals from `r nrow(master_train)`  municipalities in Brazil into population estimates for `r nrow(master_predict)`  enumeration areas (Fig. \@ref(fig:in-out)).
 
 ```{r in-out, echo=F, eval=T, warning=T, fig.cap='Census-based population totals for municipalities (left) that have been disaggregated into population estimates for enumeration areas (right) east of Sao Paulo, Brazil. Darker red corresponds to more people.', out.width = "100%", fig.align="center"}
 
@@ -332,7 +333,7 @@ knitr::include_graphics('dat/top-down-tutorial/in-out.png')
 ## Diagnostics
 
 ### Summing Enumeration Areas
-We first want to check to ensure that the EA-level population estimates sum to the municipality-level population totals.  To do this, we will aggregate the EA-level predictions using the `geo_code` column to identify the municipalities that each EA belongs to:
+We first want to check that the EA-level population estimates sum to the municipality-level population totals.  To do this, we will aggregate the EA-level predictions using the `geo_code` column to identify the municipalities that each EA belongs to:
 
 ```{r, eval=T}
 # sum EA population estimates within each municipality
@@ -352,7 +353,7 @@ test <- merge(test,
 all(round(test$pop) == round(test$predicted_pop))
 ```
 
-If we fail this test (i.e if the last line of code returns a value of FALSE), it could mean that there was an error in our implementation of Eq. \@ref(eq:prediction) because that equation should re-scale the EA-level population estimates so that they always sum to the population totals for each municipality. This test does not assess the goodness-of-fit for the random forest model.
+If we fail this test (i.e. if the last line of code returns a value of FALSE), it could mean that there was an error in our implementation of Eq. \@ref(eq:prediction) because that equation should re-scale the EA-level population estimates so that they always sum to the population totals for each municipality. This test does not assess the goodness-of-fit for the random forest model.
 
 ### Goodness-of-Fit
 
@@ -362,7 +363,7 @@ The `print` function from the randomForest package displays two metrics that des
 
 -   the % of variance explained which corresponds to a pseudo $R^2$, (1 - MSE/ Var(`y_data`)).
 
-The first metric (MSE) is dependent on the scale of the input response variable (e.g. the unit of area used to calculate population density), whereas the second metric ($R^2$)can be compared across models with different response variables.
+The first metric (MSE) is dependent on the scale of the input response variable (e.g. the unit of area used to calculate population density), whereas the second metric ($R^2$) can be compared across models with different response variables.
 
 ```{r, eval=T}
 # goodness-of-fit metrics
@@ -406,7 +407,7 @@ abline(h=0, col='red')
 There are two ways to evaluate the disaggregation results at the EA-level:
 
 1.  Comparing to an independent sample of enumeration areas or any other fine-scale spatial units for which we know the population counts, or
-2.  Build a test model using aggregated population counts at a courser resolution (e.g. state-level)  and evaluating its predictions at the municipality level.
+2.  Build a test model using aggregated population counts at a coarser resolution (e.g. state-level)  and evaluating its predictions at the municipality level.
 
 The first option relies on the availability of an additional dataset. Disaggregating population estimates into 100 m grids rather than enumeration area polygons (as in this tutorial) would provide greater flexibility for aggregating units to match the spatial units of the independent validation data.
 
@@ -417,20 +418,20 @@ The second option is discussed by Stevens et al. [-@stevens2015]. Its effectiven
 We can look at the influence of individual covariates on model predictions. There are two measures of variable importance available.  "Type 1" covariate importance is computed as the difference between out-of-bag mean squared error (MSE) from the full model compared to a model in which the variable is randomly permuted for each tree. If MSE is not affected by random permutations of the variable, then it has low importance according to this metric. 
 
 ```{r, eval=T}
-# for variable importance
+# for covariate importance
 varImpPlot(popfit, type=1) 
 ```
 
 "Type 2" covariate importance is computed as the total decrease in node purity when the variable is used for a split in the regression trees. Node purity is defined as the residual sum of squares among samples that are classified into the same terminal node of a regression tree. If splits in the tree based on this covariate do not decrease the residual sum of squares, then it has low importance according to this metric.
 
 ```{r, eval=T}
-# for variable importance
+# for covariate importance
 varImpPlot(popfit, type=2) 
 ```
 
 See `?randomForest::importance` for more details. 
 
-**Note:** Use caution when interpretting covariate importance. A high importance value indicates that the covariate improves predictive performance, but does not necessarily indicate a causal relationship with spatial patterns of population density. Covariate importance scores may also be underestimated for large groups of correlated predictor variables.
+**Note:** Use caution when interpreting covariate importance. A high importance value indicates that the covariate improves predictive performance, but does not indicate a causal relationship with spatial patterns of population density. Covariate importance scores may also be underestimated for large groups of correlated predictor variables.
 
 # Limitations
 
@@ -438,13 +439,13 @@ See `?randomForest::importance` for more details.
 
     If running time becomes an issue, there are several solutions that are outlined in the random forest set-up of Bondarenko et al. [-@bondarenko2018].
     
-    If the model takes too long to be fitted, one can play with the parameter `sampsize` , which has a great impact on modelling time or `ntreeSize`. Be careful though as a small number of trees can lead to overfitting. This issue can be clearly visible in any OOB goodness-of-fit metrics.
+    If the model takes too long to be fitted, one can play with the parameter `sampsize`, which has a great impact on modelling time or `ntreeSize`. Be careful though as a small number of trees can lead to overfitting. This issue can be clearly visible in any out-of-bag goodness-of-fit metrics.
     
     If the prediction takes too much time, Stevens et al. [-@stevens2015] proposes to prune the number of covariates based on their importance metric.
 
 2. **Random Forest models are not good at extrapolating.**
 
-    They can only predict values that are in the range of observed values. This issue becomes a problem when the training and prediction inputs differ in range and distribution, which is known as *covariate shift.* The following plot can help detect a mismatch in covariates distribution between the two scales.
+    They can only predict values that are in the range of observed values. This issue becomes a problem when the training and prediction inputs differ in range and distribution, which is known as *covariate shift*. The following plot can help detect a mismatch in covariates distribution between the two scales.
 
     ```{r cov-scale, out.width="100%", out.align="center", eval=T, fig.cap="The distributions of two covariates at each spatial scale: municipalities and enumeration areas. The left panel shows similar distributions across scales, but the right panel shows a covariate with significantly different distributions when measured for municipalities compared to enumeration areas."}
 
@@ -465,7 +466,28 @@ for(cov_name in c('mean.bra_srtm_slope_100m', 'mean.bra_viirs_100m_2016')){
   boxplot(y~x, xlab=NA, ylab=cov_name)
 }
 ```
+    ```{r cov-scale-density, out.width="100%", out.align="center", eval=T, fig.cap="The distributions of two covariates at each spatial scale: municipalities and enumeration areas. The left panel shows similar distributions across scales, but the right panel shows a covariate with significantly different distributions when measured for municipalities compared to enumeration areas."}
 
+# two panel layout
+layout(matrix(1:2, nrow=1))
+
+# loop through two covariates
+for(cov_name in c('mean.bra_srtm_slope_100m', 'mean.bra_viirs_100m_2016')){
+  
+  # combine EA-level and municipality-level values into a single vector
+  y_pred <- master_predict[,cov_name]
+  y_train <- master_train[,cov_name]
+  
+  # create density plot
+  plot(density(y_pred), main=cov_name, col='darkgreen', xlab ='')
+  lines(density(y_train), col='orange', xlab='')
+  legend("topright",        # Add legend to plot
+       c("Municipalities", "EAs"),
+       col = c('darkgreen', 'orange'),
+       lty = 1)
+
+}
+```
     Notice that the covariate `mean.bra_viirs_100m_2016` has a different range of values for EAs compared to municipalities (Fig. \@ref(fig:cov-scale)).  This covariate measures the intensity of nighttime lights and we would expect its average values to be less in larger municipalities with large unsettled sections compared to small EAs, many of which are densely populated. This covariate was also one of the most influential on model predictions (see [Covariate Importance]).  We may want to consider re-calculating this covariate using a mask to exclude unsettled areas within municipalities and EAs in an attempt to have a more comparable measure between spatial scales.
 
 3. **Random Forest models are not ideal for inferring covariate effects.**  
