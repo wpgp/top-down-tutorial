@@ -15,11 +15,6 @@ csl: worldpop.csl
 
 ```{r, eval=T, echo=FALSE, results=FALSE}
 # knitr::opts_knit$set(root.dir = 'dat/top-down-tutorial')
-
-file.copy(from = c('../wd/out/master_train.csv','../wd/out/master_predict.csv'),
-          to = c('dat/top-down-tutorial/master_train.csv','dat/top-down-tutorial/master_predict.csv'),
-          overwrite = T)
-
 knitr::opts_chunk$set(message = FALSE, echo = T, warning = FALSE, eval = FALSE)
 
 ```
