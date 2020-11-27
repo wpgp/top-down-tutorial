@@ -1,4 +1,8 @@
-.Rproj.user
+wd
+tutorial/out
+tutorial/master_predict.csv
+tutorial/master_train.csv
 .Rhistory
-.RData
-.Ruserdata
+*.Rproj*
+*.qgz
+.Rproj.user
