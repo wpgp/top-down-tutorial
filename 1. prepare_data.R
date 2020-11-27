@@ -1,12 +1,12 @@
 # cleanup
 rm(list=ls()); gc(); cat("\014"); try(dev.off(), silent=T)
 
-try(source(file.path(dirname(rstudioapi::getSourceEditorContext()$path),'0_setup.R')))
+try(source(file.path(dirname(rstudioapi::getSourceEditorContext()$path),'0. setup.R')))
 
 # 1. Set-up ---------------------------------------------------------------
 
 # working directory
-local <- T
+local <- F
 if(local){
   setwd(file.path(dirname(rstudioapi::getSourceEditorContext()$path),'wd'))
 } else {
@@ -33,8 +33,9 @@ library(data.table) # fast dataframe writing
 
 ##-- load data --##
 
-# Boundaries from IGBE 2019
-# https://www.ibge.gov.br/en/geosciences/territorial-organization/regional-division/23708-brazilian-territorial-division.html?=&t=o-que-e
+# Boundaries from IGBE 2010
+
+#admin3_poly <- read_municpal_seat(year=2010) # we need an updated version
 admin3_poly <- st_read(file.path(data_path, 'adminBoundaries/admin_municipality.gpkg'), stringsAsFactors = F)
 
 # Mastergrid from WorldPop
@@ -42,17 +43,14 @@ masterGrid <- raster(file.path(data_path, "masterGrid.tif"))
 
 # Population data from IGBE census 2007
 # https://biblioteca.ibge.gov.br/index.php/biblioteca-catalogo?view=detalhes&id=293420
-pop_admin3 <- read.csv(file.path(data_path, 'population/pop_2007_municipality.csv'))
+pop_admin3 <- read.csv(file.path(data_path, 'population/pop_projections_2020_municipality.csv'))
 
 # EA boundaries
 
-# # gridEZ large scenario and converted to polygons
-# EA_poly <- st_read(file.path(data_path, 'gridEZ/EZ_poly.gpkg'))
 
 # IBGE census EAs(public)
 # http://geoftp.ibge.gov.br/organizacao_do_territorio/malhas_territoriais/malhas_de_setores_censitarios__divisoes_intramunicipais/2019/Malha_de_setores_(shp)_Brasil/
 EA_poly <- st_read(file.path(data_path, 'censusEAs/BR_Setores_2019.shp'))
-EA_poly$EZ_id <- 1:nrow(EA_poly) # ids were not unique in gridEZ output
 
 
 
