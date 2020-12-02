@@ -8,18 +8,10 @@ output:
   bookdown::html_document2:
     toc: true
     toc_float: true
-bibliography: book.bib
+bibliography: top-down-tutorial.bib
 link-citations: yes
 csl: worldpop.csl
 ---
-
-```{r, eval=T, echo=FALSE, results=FALSE}
-# knitr::opts_knit$set(root.dir = 'dat/top-down-tutorial')
-knitr::opts_chunk$set(message = FALSE, echo = T, warning = FALSE, eval = FALSE)
-
-```
-
-
 
 # Introduction
 
@@ -41,19 +33,15 @@ The modelling process consists of three steps:
 2.  Predict population densities at the level of enumeration areas using the covariates, and 
 3.  Use predicted densities as a weighting layer to disaggregate the population totals for munipalities.
 
-The core product is the weighting layer that should reflect the spatial distribution of the population inside the municipalities.
+The core product is the weighting layer that should reflect the spatial distribution of the population inside the municipalities. The final goal is to predict the population count in each enumeration area correctly. 
 
 ```{r schema, echo=F, eval=T, warning=T, fig.cap='Modelling Process', out.width = "100%", fig.align="center"}
 knitr::include_graphics('dat/top-down-tutorial/schema.jpg')
 ```
 
-The final goal is to **predict the population density correctly**. In the realm of machine learning, random forest model, an ensemble, non-linear, non-parametric modeling approach growing a *forest* of individual regression trees [@breiman2001], has shown great predictive performance [@robnik-ikonja2004] for easy tuning process [@stevens2015].
+Random forest is a machine learning algorithm that builds an ensemble of individual regression trees to predict values of a response variable (e.g.  population density) based on its relationships with geospatial covariates [@breiman2001; @stevens2015].  Each regression tree identifies threshold values of the covariates that can be used to split the training data into fairly homogeneous groups (i.e. with similar population densities). 
 
-Another interesting feature of random forest model is **its robustness to multi-scaled covariates and to multi-collinearity**. To ensure that low signals are picked by the algorithm, we shall integrate any covariates that are only slightly related to population or meek variations of an another covariate.
-
-However, adding additional covariates might impact the running time, especially at the prediction stage. This can be overcome by a preliminary step before predicting that discards covariates based on their importance during the fitting stage [@stevens2015; @bondarenko2018].
-
-Finally, as just mentioned, random forest allows to compute metrics on the covariates importance. Multi-collinearity pattern might affect the magnitude of the covariates effect but not their ranking [@genuer2010].
+The algorithm prevents overfitting by withholding a subset of the training data for each individual tree that can be used to calculate rates of "out-of-bag" prediction error (i.e. out-of-sample cross-validation).  The algorithm also prevents overfitting by randomly selecting a small set of covariates to be considered for splitting the training data at each node of the regression tree, rather than assessing all covariates at each split. These features make random forest fairly robust to multi-collinearity among covariates allowing it to use large sets of covariates without *a priori* variable selection. However, a large number of covariates might impact running time, especially at the prediction stage, and it may be useful to select a subset of covariates based on the measures of covariate importance provided by the random forest algorithm [@stevens2015; @bondarenko2018]. While random forest predictions are robust to multi-collinearity among covariates, the measures of covariate importance may not be [@genuer2010].
 
 To dive deeper on the subject of random forest, here are some online materials:
 
@@ -69,19 +57,19 @@ The implementation we will provide in this tutorial will follow the guidance set
 
 This model will be implemented in the R programming language [@r2020r]. Our first step is to setup the R environment so that it contains the R packages and data that we will need. The `randomForest` package [@law2018] implements the random forest algorithm in R. If you have not already installed it, then you will need to install it.
 
-```{r}
+```{r, eval=F}
 install.packages('randomForest')
 ```
 
 Once installed, you must load the `randomForest` package into your R environment.
 
-```{r, eval=T}
+```{r, eval=T, messages=F}
 library(randomForest)
 ```
 
 We will define our working directory to be the location where we have stored the input data for the tutorial (`master_train.csv` and `master_predict.csv` described below). 
 
-```{r}
+```{r, eval=F}
 setwd('c:/myfolder')
 ```
 
@@ -99,7 +87,7 @@ This tutorial includes two input data sets, provided as csv spreadsheets (comma-
 
 We will load the datasets into our R environment using the `read.csv` function and display their top ten rows with the `head` function:
 
-```{r}
+```{r, eval=F}
 
 # training data from municipalities
 master_train <- read.csv("master_train.csv")
@@ -124,15 +112,15 @@ The `geo_code` column contains a numeric identifier for each municipality and wi
 
 **Note:** We derived the two spreadsheets (`master_train.csv` and `master_predict.csv`) from the following sources:  
 
-1. Brazil's [municipality boundaries](https://www.ibge.gov.br/en/geosciences/territorial-organization/regional-division/23708-brazilian-territorial-division.html?=&t=o-que-e),  
+1. Brazil's [municipality boundaries](https://www.ibge.gov.br/en/geosciences/territorial-organization/regional-division/23708-brazilian-territorial-division.html?=&t=o-que-e) [@ibge2019brazilian],  
 
-2. Brazil's [2020 census projections](https://www.ibge.gov.br/en/statistics/social/18448-population-estimates.html?=&t=resultados) for municipalities,  
+2. Brazil's [2020 census projections](https://www.ibge.gov.br/en/statistics/social/18448-population-estimates.html?=&t=resultados) for municipalities [@ibge2020population],  
 
-3. Brazil's [census EA boundaries](http://geoftp.ibge.gov.br/organizacao_do_territorio/malhas_territoriais/malhas_de_setores_censitarios__divisoes_intramunicipais/2019/Malha_de_setores_(shp)_Brasil/),   
+3. Brazil's [census EA boundaries](http://geoftp.ibge.gov.br/organizacao_do_territorio/malhas_territoriais/malhas_de_setores_censitarios__divisoes_intramunicipais/2019/Malha_de_setores_(shp)_Brasil/) [@ibge2020meshes],   
 
-4. WorldPop's [mastergrid](ftp://ftp.worldpop.org/GIS/Mastergrid/Global_2000_2020/BRA/L0/) for Brazil, and  
+4. WorldPop's [mastergrid](ftp://ftp.worldpop.org/GIS/Mastergrid/Global_2000_2020/BRA/L0/) for Brazil [@worldpop2018mastergrid], and  
 
-5. WorldPop's [geospatial covariate rasters](ftp://ftp.worldpop.org/GIS/Covariates/Global_2000_2020/BRA/) for Brazil.
+5. WorldPop's [geospatial covariate rasters](ftp://ftp.worldpop.org/GIS/Covariates/Global_2000_2020/BRA/) for Brazil [@lloyd2019global; @lloyd2017high].
 
 
 # Random Forest
@@ -208,7 +196,7 @@ Our specifications for other parameters followed Bondarenko et al. [-@bondarenko
 
 Once we have decided on appropriate settings, we will input them as arguments to the `tuneRF()` function.
 
-```{r}
+```{r, eval=F}
 # model fitting
 popfit <- tuneRF(x=x_data, 
                  y=y_data, 
@@ -228,14 +216,14 @@ popfit <- tuneRF(x=x_data,
 
 The `popfit` object contains the fitted random forest model. We will save it to our hard drive:
 
-```{r}
+```{r, eval=F}
 # save model
 save(popfit, 'popfit.Rdata')
 ```
 
 We can load the fitted model back into our R environment later using:
 
-```{r}
+```{r, eval=F}
 # load model
 load('popfit.Rdata')
 ```
@@ -397,7 +385,7 @@ abline(h=0, col='red')
 
 **Important Note:** The different goodness-of-fit diagnostics presented here are focused on the training dataset and thus on predicting at the municipality level, but remember that the final goal is to predict at the enumeration area level.
 
-### EA-level Predictions
+### EA-level Assessment
 
 There are two ways to evaluate the disaggregation results at the EA-level:
 
@@ -436,7 +424,7 @@ See `?randomForest::importance` for more details.
     
     If the model takes too long to be fitted, one can play with the parameter `sampsize`, which has a great impact on modelling time or `ntreeSize`. Be careful though as a small number of trees can lead to overfitting. This issue can be clearly visible in any out-of-bag goodness-of-fit metrics.
     
-    If the prediction takes too much time, Stevens et al. [-@stevens2015] proposes to prune the number of covariates based on their importance metric.
+    If the prediction takes too much time, Stevens et al. [-@stevens2015] proposes to prune the number of covariates based on their importance metric. We have also provided an example of how to generate predictions more efficiently using parallel processing (see [Parallel Processing] section below).
 
 2. **Random Forest models are not good at extrapolating.**
 
@@ -461,44 +449,278 @@ for(cov_name in c('mean.bra_srtm_slope_100m', 'mean.bra_viirs_100m_2016')){
   boxplot(y~x, xlab=NA, ylab=cov_name)
 }
 ```
-    ```{r cov-scale-density, out.width="100%", out.align="center", eval=T, fig.cap="The distributions of two covariates at each spatial scale: municipalities and enumeration areas. The left panel shows similar distributions across scales, but the right panel shows a covariate with significantly different distributions when measured for municipalities compared to enumeration areas."}
 
-# two panel layout
-layout(matrix(1:2, nrow=1))
-
-# loop through two covariates
-for(cov_name in c('mean.bra_srtm_slope_100m', 'mean.bra_viirs_100m_2016')){
-  
-  # combine EA-level and municipality-level values into a single vector
-  y_pred <- master_predict[,cov_name]
-  y_train <- master_train[,cov_name]
-  
-  # create density plot
-  plot(density(y_pred), main=cov_name, col='darkgreen', xlab ='')
-  lines(density(y_train), col='orange', xlab='')
-  legend("topright",        # Add legend to plot
-       c("Municipalities", "EAs"),
-       col = c('darkgreen', 'orange'),
-       lty = 1)
-
-}
-```
-    Notice that the covariate `mean.bra_viirs_100m_2016` has a different range of values for EAs compared to municipalities (Fig. \@ref(fig:cov-scale)).  This covariate measures the intensity of nighttime lights and we would expect its average values to be less in larger municipalities with large unsettled sections compared to small EAs, many of which are densely populated. This covariate was also one of the most influential on model predictions (see [Covariate Importance]).  We may want to consider re-calculating this covariate using a mask to exclude unsettled areas within municipalities and EAs in an attempt to have a more comparable measure between spatial scales.
+    Notice that the covariate `mean.bra_viirs_100m_2016` has a different range of values for EAs compared to municipalities (Fig. \@ref(fig:cov-scale)).  This covariate measures the intensity of nighttime lights and we would expect its average values to be less in larger municipalities with large unsettled sections compared to small EAs, many of which are densely populated. This covariate was also the most influential on model predictions (see [Covariate Importance]).  We may want to consider re-calculating this covariate using a mask to exclude unsettled areas within municipalities and EAs in an attempt to have a more comparable measure between spatial scales.
 
 3. **Random Forest models are not ideal for inferring covariate effects.**  
 
     The purpose of the modelling is to have a great predictive performance. We are not aiming at explaining the drivers of human spatial distribution. Therefore no causal effect should be derived from the modelling results.
 
-# Conclusions
 
-Congratulations!  You made it.  Thank you, and goodnight.
+# Tips and Tricks
 
+The previous sections demonstrated the basic components of random forest top-down disaggregation, but there are additional tips and tricks that may be useful.
+
+## Map Results
+
+If you want to view the EA-level population estimates on a map, you will need to join the model results (from section [EA-level Predictions] above) to polygon features for use with GIS software (e.g. Esri polygon shapefile).  
+
+For this step, we will need to install and load the `sf` package [@pebesma2018simple] to read and manipulate GIS vector data (census EAs, in this case).
+
+```{r, eval=F}
+install.packages('sf')
+library('sf')
+```
+
+Then, we need to load a vector GIS data set containing the polygons that we would like to join our model results to.
+
+```{r, eval=F}
+sf_polygons <- st_read('BR_Setores_2019.shp')
+```
+
+For this example, we are using Brazilian census enumeration area polygons which are openly available online as an Esri polygon shapefile [@ibge2020population]. Note that the `st_read` function can read most GIS file formats (e.g. Esri shapefile, geopackage, geojson).  See `?sf::st_read` for more information.
+
+We will add an ID column that matches the enumeration area IDs from the `EA_id` column of the `master_predict` data.frame object (continuing from previous sections of this tutorial).
+
+```{r, eval=F}
+sf_polygons$EA_id <- 1:nrow(sf_polygons)
+```
+
+Then, we can merge the `master_predict` data.frame which contains our EA-level population estimates into `sf_polygons`. We will use the `EA_id` column to match values to the correct enumeration area polygons.
+
+```{r, eval=F}
+sf_polygons <- merge(sf_polygons, 
+                     master_predict,
+                     by='EA_id')
+```
+
+Finally, we save the results to disk as an Esri shapefile.
+
+```{r, eval=F}
+st_write(sf_polygons,
+         'master_predict_polygons.shp')
+```
+
+This will save the result as an Esri shapefile because it uses the `.shp` file extension.  If we want to save to a different format, we can simply modify the file extension.  For example, we can save the result as a GeoPackage by adding the`.gpkg` file extension. 
+
+```{r, eval=F}
+st_write(sf_polygons,
+         'master_predict_polygons.gpkg')
+```
+
+## Zonal Statistics
+
+This tutorial began with two pre-processed spreadsheets `master_train.csv` and `master_predict.csv`. These input data were derived from raster-based covariates using zonal statistics to summarize raster values within each municipality and enumeration area using mean values or other summary statistics (e.g. median, mode, standard deviation, min, max). We will give a brief demonstration of how to do this.
+
+We will rely on the `raster` and `exactextractr` packages [@hijmans2020raster; @bastan2020exactextractr] for this step and so we will first install and load those packages:  
+
+```{r, eval=F}
+install.packages(c('raster','exactextractr'))
+library('raster')
+library('exactextractr')
+```
+
+We already have polygon features `sf_polygons` loaded from the previous section ([Map Results]). We will also need to load a covariate raster. We will use a nighttime lights raster for Brazil that is openly available [@worldpop2018geospatial].
+
+```{r, eval=F}
+raster_covariate <- raster('bra_viirs_100m_2016.tif')
+```
+
+Next, we will calculate a zonal mean within each enumeration area using the object `sf_polygons` (from section [Map Results]).
+
+```{r, eval=F}
+sf_polygons$mean.bra_viirs_100m_2016 <- exact_extract(x = raster_covariate,
+                                                      y = sf_polygons,
+                                                      fun = 'mean')
+```
+
+Here, we saved the results into a new column of the `sf_polygons` data.frame called `mean.bra_viirs_100m_2016`.  
+
+**Note:** The [exactextractr README](https://cran.r-project.org/web/packages/exactextractr/readme/README.html) also demonstrates a simple workflow to calculate zonal statistics for Brazilian municipalities.
+
+After we have calculated all of the zonal statistics that we need, we can save the `sf_polygons` data.frame to disk as a csv spreadsheet.
+
+```{r, eval=F}
+write.csv(st_drop_geometry(sf_polygons), 
+          file = 'EA_covariates.csv',
+          row.names = FALSE)
+```
+
+This would be comparable to `master_predict.csv` that we used as input data for this tutorial.  Note that the `st_drop_geometry()` function removes the polygon geometries from the `sf` object so that it is a simple data.frame with no spatial geometries (i.e. polygons) associated with each row.  We could also save the results as an Esri shapefile to maintain the feature geometries.  
+
+```{r, eval=F}
+st_write(sf_polygons, 'EA_covariates.shp')
+```
+
+## Gridded Population Estimates
+
+In this tutorial, we disaggregated municipality-level population totals into finer resolution EA-level population estimates. We can also disaggregate population totals into grid cells (e.g. 100 m, 1 km).  It is often easier to work with gridded population estimates because they can be aggregated to any areal units (e.g. census enumeration areas, administrative units, health facility catchment areas) and they may also be easier to compare to gridded data from other sources. 
+
+To do this, we need to create a new version of `master_predict.csv` where each row represents a grid cell rather than an enumeration area. We will start by loading a raster to use as a mastergrid that defines the locations and sizes of grid cells that we want to use.
+
+```{r, eval=F}
+mastergrid <- raster('bra_level0_100m_2000_2020.tif')
+```
+
+This mastergrid raster for Brazil is publicly available from WorldPop [-@worldpop2018mastergrid]. In this mastergrid, any cells that contain a value of NA are outside of Brazil. 
+
+Cell IDs for a raster are a numerical sequence starting from 1 in the top-left corner of the raster and increasing left-to-right. There are more than 2.5 billion grid cells in Brazil's mastergrid and more than one billion contain non-NA values. We want to identify the cell IDs for all cells with a non-NA value. Because Brazil contains so many grid cells, we will subset the mastergrid for processing.
+
+```{r, eval=F}
+cells <- which(!is.na(mastergrid[1:1e8]))
+```
+
+The new vector object `cells` will contain the cell IDs for the first 100 million grid cells (i.e. cells 1 to 1e8) in the mastergrid that contain non-NA values. We will continue with only this subset of the data to demonstrate how to generate gridded population estimates. In practice, we may want to process all of the grid cells at once (if computing power allows) or loop through one subset of cell IDs at a time (e.g. using a for loop) until all cell IDs are processed.   
+
+We will now setup a data.frame with a column for the cell IDs.
+
+```{r, eval=F}
+mastergrid_predict <- data.frame(row.names = cells)
+```
+
+Next, we will use the same covariate raster `raster_covariate` from the previous section ([Zonal Statistics]) [@worldpop2018geospatial]. This raster has the exact same extent and cell size as the mastergrid. Because the two rasters have identical extent and cell size, their cell IDs are comparable allowing us to use our vector of cell IDs `cells` to extract values very quickly and save them as a new column in the data.frame `master_predict`.
+
+```{r, eval=F}
+mastergrid_predict[cells, 'bra_viirs_100m_2016'] <- raster_covariate[cells]
+```
+
+If the extent and cell size of a covariate raster do not match, then we can extract values from the covariate raster using the point coordinates associated with each grid cell rather than using cell IDs, but this is a slower process. 
+
+```{r, eval=F}
+# XY coordinates of each grid cell
+xy <- xyFromCell(mastergrid, cells)
+
+# extract raster values at those coordinates  
+mastergrid_predict[cells, 'bra_viirs_100m_2016_alt'] <- extract(raster_covariate, xy)
+```
+
+**Note:** Another option would be to resample the covariate raster to match the mastergrid, but exploring the different options for resampling is beyond the scope of this tutorial (see `?raster::resample` for more information).  
+
+We can then save the results as a csv spreadsheet. 
+
+```{r, eval=F}
+write.csv(mastergrid_predict,
+          file = 'mastergrid_predict.csv',
+          row.names = FALSE)
+```
+
+This spreadsheet could be used in exactly the same way as `master_predict.csv` was used above to generate model predictions (see section [EA-level Predictions]). Because there are so many grid cells in Brazil where predictions are needed we would likely want to use parallel processing to speed up the calculations (see [Parallel Processing] section below). With either approach, we would generate a new column called `predicted_pop` in the `master_predict` data.frame that would contain the population estimates for each grid cell. 
+
+After we have these model predictions in tabular form in `master_predict`, we would then want to rasterize those results. First, we create an empty raster.
+
+```{r, eval=F}
+raster_predict <- raster(mastergrid)
+```
+
+Then, we insert the population estimates into the raster based on the cell IDs of the predicted values.
+
+```{r, eval=F}
+raster_predict[cells] <- mastergrid_predict[cells, 'predicted_pop']
+```
+
+If we are processing the cells in different subsets (i.e. using a for loop), we can repeat this step on the same raster using different sets of cell IDs until the raster is fully populated.
+
+Finally, we can save the rasterized results to disk as a geotiff raster.
+
+```{r, eval=F}
+writeRaster(raster_predict, 
+            file = 'raster_predict.tif')
+```
+
+## Parallel Processing
+
+Parallel processing can improve processing speed when the study area contains a large number of spatial units where predictions are required (i.e. grid cells or polygons). For parallel processing, we will split the data into chunks that will be processed simultaneously using all of the processing cores available in our computer.  The process that we described above to generate model predictions (see section [EA-level Predictions]) used only a single processing core even if your computer had four or more cores available.
+
+In the example from the previous section ([Gridded Population Estimates]), we saw that Brazil contained more than one billion grid cells where we would need model predictions. This would likely require parallel processing to generate model predictions efficiently. For a simple and efficient example, we will demonstrate parallel processing using the EA-level data in `master_predict` that will allow you to explore the process easily. When you are comfortable with the process, it can also be applied to the much larger data set in `mastergrid_predict`.
+
+For this task we will need the `doParallel` R package [@microsoft2020doParallel] so we will start by installing and loading that package.
+
+```{r, eval=F}
+install.packages('doParallel')
+library('doParallel')
+```
+
+We will need to create a new R function that will generate model predictions. In the parallel processing steps that will follow, this function will be passed to a processing core along with a chunk of the data to generate predictions.
+
+```{r, eval=F}
+predict_pop <- function(df, model=popfit){
+  
+  # EA-level predictions
+  prediction <- predict(model, newdata = df)
+  
+  # back-transform to population density
+  density <- exp(prediction)
+  
+  # calculate weights
+  weights <- density / sum(density) 
+  
+  # disaggregate municipality total to EA-level
+  pop <- weights * df$pop_municipality[1]
+  
+  # result to data.frame
+  result <- data.frame(id=df$id, predicted_pop_parallel=pop)
+  
+  # return result
+  return(result)
+}
+```
+
+The `df` argument of the function will be a subset of rows from `master_predict` and the `model` argument is the fitted random forest object `popfit`.  This function generates model predictions using the `predict` function from the `randomForest` package and then it back-transforms the predicted log-densities to the natural scale. It then calculates weights from those densities and multiplies the weights by the total population for the municipality that each grid cell belongs to (note: these are the same steps as in section [EA-level Predictions]). The results are returned as a data.frame with an "id" column and a column containing the predictions.  
+
+Now, we will add an "id" column into `master_predict` that we will later use to merge the predictions back into this data.frame.
+
+```{r, eval=F}
+master_predict$id <- 1:nrow(master_predict)
+```
+
+Next, we will break the `master_predict` data.frame into chunks that will be stored as elements in a list object.
+
+```{r, eval=F}
+list_master_predict <- split(x = master_predict,
+                             f = master_predict$geo_code)
+```
+
+Notice that we have used the `geo_code` column in `master_predict` to define the chunks. Remember, that `geo_code` identifies each municipality, so we will be processing each municipality separately. This simplifies the steps that are required in the predict function (above) because all units processed in a chunk use the same municipality-level total population (i.e. `df$pop_municipality[1]`). The new object `list_master_predict` is a list with an element for each municipality that contains a data.frame with a row for each spatial unit within that municipality.
+
+Now, we must setup parallel processing by identifying the number of cores available, assigning them to a processing cluster, and activating the cluster.
+
+```{r, eval=F}
+cores <- detectCores()
+  
+cluster <- makeCluster(cores)
+  
+registerDoParallel(cluster)
+```
+
+Then, we can run the predictions in parallel using this cluster.
+
+
+```{r, eval=F}
+predicted <- foreach(i = 1:length(list_master_predict), 
+                     .combine = 'rbind',
+                     .packages = c("randomForest")) %dopar% 
+  predict_pop(df = list_master_predict[[i]])
+
+stopCluster(cluster)
+```
+
+This code will pass each element `i` from `list_master_predict` to our predict function `predict_pop()` and then combine the resulting data.frames using the `rbind()` function. The last line of code simply deactivates our cluster of processing cores.  
+
+The last step is to merge the results back into our original data.frame `master_predict` using the `id` column that we setup earlier.
+
+```{r, eval=F}
+master_predict <- merge(master_predict,
+                        predicted,
+                        by = 'id')
+```
+
+**Note:** We have demonstrated parallel processing using the EA-level data in `master_predict`. It is important to note that EA-level predictions do not take too long to compute using the simpler approach (see section [EA-level Predictions]). We recommend parallel processing only for larger tasks like generating gridded predictions from `mastergrid_predict`. We did not use this data in our example because it would potentially introduce complications that would distract from the demonstration of parallel processing, but the workflow that we demonstrated should be easily adaptable to accommodate any larger data sets. 
 
 # Contributions {-}
 This tutorial was written by Doug Leasure and Edith Darin from the WorldPop Research Group at the University of Southampton with oversight from Andy Tatem. This work was part of a WorldPop collaboration with the Brazilian Institute of Geography and Statistics (IBGE), United Nations Population Fund (UNFPA), and the Environmental Systems Research Institute (Esri). 
 
 # Suggested Citation {-}
-Leasure DR, Darin E, Tatem AJ. 2020. An R tutorial: Top-down disaggregation of municipality population totals to estimate populations in smaller enumeration areas. WorldPop, University of Southampton. doi:10.5258/SOTON/WP00XXX.
+Leasure DR, Darin E, Tatem AJ. 2020. Top-down disaggregation of municipality population totals to estimate populations in smaller enumeration areas: An R tutorial. WorldPop, University of Southampton. doi:10.5258/SOTON/WP00697.
 
 # License {-}
 You are free to copy and redistribute this tutorial under the terms of a <a href="https://creativecommons.org/licenses/by-nd/4.0/" target="_blank">CC BY-ND 4.0</a> license.

@@ -1,23 +1,16 @@
-#------------- setup ---------------#
-
-# cleanup
-rm(list=ls()); gc(); cat("\014"); try(dev.off(), silent=T)
-
-# working directory
-rd <- dirname(rstudioapi::getSourceEditorContext()$path)
-
-setwd(file.path(rd,'dat/top-down-tutorial'))
-
-# copy source
-file.copy(from = c(file.path(rd,'wd/out/master_train.csv'),file.path(rd,'wd/out/master_predict.csv')),
-          to = c('master_train.csv','master_predict.csv'),
-          overwrite = T)
 
 #-----------------------------------#
 
 # packages
 library(randomForest) # estimating random forest model
 
+# working directory
+local <- T
+if(local){
+  setwd(file.path(dirname(rstudioapi::getSourceEditorContext()$path),'dat/top-down-tutorial'))
+} else {
+  setwd("//worldpop.files.soton.ac.uk/worldpop/Projects/WP517763_GRID3/Working/git/top-down-tutorial")
+}
 #--
 
 # training data from municipalities
@@ -189,7 +182,9 @@ for(cov_name in c('mean.bra_srtm_slope_100m', 'mean.bra_viirs_100m_2016')){
 
 
 #----------------- figures -------------------#
+
 if(F){
+  
   # enumeration areas
   ea <- sf::st_read(file.path(rd,'wd/in/censusEAs/BR_Setores_2019.shp'))
   ea$EA_id <- 1:nrow(ea)
@@ -212,7 +207,132 @@ if(F){
   sf::st_write(municipality, file.path(rd,'wd/out/municipality.gpkg'))
 }
 
+#------- tips and tricks ------#
+if(F){
+  
+  
+  # results to EA polygons
+  
+  library('sf')
+  
+  sf_polygons <- st_read('../../wd/in/censusEAs/BR_Setores_2019.shp')
 
+  sf_polygons$EA_id <- 1:nrow(sf_polygons)
+
+  sf_polygons <- merge(sf_polygons,
+                       master_predict,
+                       by='EA_id')
+  
+  st_write(sf_polygons,
+           'master_predict_polygons.shp')
+  
+  st_write(sf_polygons,
+           'master_predict_polygons.gpkg')
+  
+  
+  
+  # zonal statistics
+  
+  library(raster)
+  library(exactextractr)
+  
+  raster_covariate <- raster('../../wd/in/covariates/bra_viirs_100m_2016.tif')
+  
+  sf_polygons$mean.bra_viirs_100m_2016 <- exact_extract(x = raster_covariate,
+                                                        y = sf_polygons,
+                                                        fun = 'mean')
+  
+  write.csv(st_drop_geometry(sf_polygons), 
+            file = 'EA_covariates.csv',
+            row.names = FALSE)
+  
+  st_write(sf_polygons, 'EA_covariates.shp')
+  
+  
+  
+  # gridded population estimates
+  
+  mastergrid <- raster('../../wd/in/bra_level0_100m_2000_2020.tif')
+  
+  cells <- which(!is.na(mastergrid[]))
+  
+  mastergrid_predict <- data.frame(row.names = cells)
+  
+  
+  raster_covariate <- raster('../../wd/in/covariates/bra_viirs_100m_2016.tif')
+  
+  mastergrid_predict$bra_viirs_100m_2016 <- raster_covariate[cells]
+  
+  
+  xy <- xyFromCell(mastergrid, cells)
+  
+  mastergrid_predict$bra_viirs_100m_2016_alt <- extract(raster_covariate, xy)
+  
+  write.csv(mastergrid_predict,
+            file = 'mastergrid_predict.csv',
+            row.names = FALSE)
+  
+  
+  mastergrid_predict$predicted_pop <- runif(nrow(mastergrid_predict), 0, 1000)
+  
+  raster_predict <- raster(mastergrid)
+  
+  raster_predict[cells] <- mastergrid_predict[cells, 'predicted_pop']
+  
+  writeRaster(raster_predict, 
+              file = 'raster_predict.tif')
+  
+  
+  
+  # parallel processing
+  
+  
+  library(doParallel)
+  
+  predict_pop <- function(df, model=popfit){
+    
+    # EA-level predictions
+    prediction <- predict(model, newdata = df)
+    
+    # back-transform to population density
+    density <- exp(prediction)
+    
+    # calculate weights
+    weights <- density / sum(density) 
+    
+    # disaggregate municipality total to EA-level
+    pop <- weights * df$pop_municipality[1]
+    
+    # result to data.frame
+    result <- data.frame(id=df$id, predicted_pop_parallel=pop)
+    
+    # return result
+    return(result)
+  }
+  
+  master_predict$id <- 1:nrow(master_predict)
+  
+  list_master_predict <- split(x = master_predict,
+                               f = master_predict$geo_code)
+  
+  cores <- detectCores()
+  
+  cluster <- makeCluster(cores)
+  
+  registerDoParallel(cluster)
+  
+  predicted <- foreach(i = 1:length(list_master_predict), 
+                       .combine = 'rbind',
+                       .packages = c("randomForest")) %dopar% 
+    predict_pop(df = list_master_predict[[i]])
+  
+  stopCluster(cluster)
+  
+  master_predict <- merge(master_predict,
+                          predicted,
+                          by = 'id')
+  
+}
 #---------------------------------------------#
 
 

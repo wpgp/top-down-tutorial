@@ -4,19 +4,21 @@
 #' @param srcdir characer. Directory of source files
 #' @param outdir character. Directory to write output files to
 #' @param OS.type character ('windows' or 'unix'). Type of operating system (see \code{.Platform$OS.type})
+#' @param local logical. If TRUE, srcdir will be treated as a local path and the network pre-fix will not be appended.
 #' @param md5check logical. If TRUE, an md5sum check is performed to compare contents of source files to local files. If they differ, the local files will be overwritten.
 #' @return Writes input files to disk
 #' @export
 
-copyWP <- function(srcdir, outdir, OS.type='windows', md5check=FALSE){
+copyWP <- function(srcdir, outdir, OS.type='windows', local=TRUE, md5check=FALSE){
 
   # format server name
-  if(.Platform$OS.type=="windows"){
-    srcdir <- file.path('//worldpop.files.soton.ac.uk/worldpop', srcdir)
+  if(!local){
+    if(.Platform$OS.type=="windows"){
+      srcdir <- file.path('//worldpop.files.soton.ac.uk/worldpop', srcdir)
+    } else if(.Platform$OS.type=="unix"){
+      srcdir <- file.path('/Volumes/worldpop', srcdir)
+    }
   }
-  if(.Platform$OS.type=="unix"){
-    srcdir <- file.path('/Volumes/worldpop', srcdir)
-  } 
 
   # check source directory exists
   if(!dir.exists(srcdir)){

@@ -6,7 +6,7 @@ try(source(file.path(dirname(rstudioapi::getSourceEditorContext()$path),'0. setu
 # 1. Set-up ---------------------------------------------------------------
 
 # working directory
-local <- F
+local <- T
 if(local){
   setwd(file.path(dirname(rstudioapi::getSourceEditorContext()$path),'wd'))
 } else {
@@ -19,8 +19,9 @@ data_path <- file.path(getwd(), "in")
 output_path <- file.path(getwd(), "out")
 
 # copy source data
-copyWP(srcdir = 'Projects/WP517763_GRID3/Working/git/top-down-tutorial/in',
-       outdir = data_path)
+copyWP(srcdir = 'E:/WorldPop/Projects/WP517763_GRID3/Working/git/top-down-tutorial/in',
+       outdir = data_path,
+       local=T)
 
 # load packages
 library(sf) # manipulating vector GIS file
@@ -147,8 +148,8 @@ master_train <- master_train %>%
   
 # 5. Save outputs ---------------------------------------------------------
 
-fwrite(cov_EA, file.path(output_path, "cov_EA.csv"))
-write.csv(cov_admin3, file.path(output_path, "cov_admin3.csv"))
+# fwrite(cov_EA, file.path(output_path, "cov_EA.csv"))
+# write.csv(cov_admin3, file.path(output_path, "cov_admin3.csv"))
 
 x <- c('name_muni','geo_code','pop','area')
 x <- c(x, sort(names(master_train)[!names(master_train) %in% x], decreasing=T))
@@ -168,7 +169,7 @@ if(local){
 }
 
 file.copy(from = c(file.path(input_path, 'master_train.csv'), file.path(input_path, 'master_predict.csv')),
-          to = c('dat/top-down-tutorial/master_train.csv','dat/top-down-tutorial/master_predict.csv'),
+          to = c('../dat/top-down-tutorial/master_train.csv','../dat/top-down-tutorial/master_predict.csv'),
           overwrite = T)
 
 
