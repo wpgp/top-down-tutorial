@@ -529,8 +529,9 @@ raster_covariate <- raster('bra_viirs_100m_2016.tif')
 Next, we will calculate a zonal mean within each enumeration area using the object `sf_polygons` (from section [Map Results]).
 
 ```{r, eval=F}
+sf_polygons_proj <- st_transform(sf_polygons, as.character(crs(raster_covariate))) #we first convert it to the same crs
 sf_polygons$mean.bra_viirs_100m_2016 <- exact_extract(x = raster_covariate,
-                                                      y = sf_polygons,
+                                                      y = sf_polygons_proj,
                                                       fun = 'mean')
 ```
 
