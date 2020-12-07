@@ -17,13 +17,15 @@ csl: worldpop.csl
 
 The purpose of top-down disaggregation is to estimate population counts at a finer spatial resolution than the available population totals for administrative units. [WorldPop top-down disaggregation](https://www.worldpop.org/methods/top_down_constrained_vs_unconstrained) implements a machine learning approach to disaggregate projected census totals to estimate population counts for 100 m grid cells [@stevens2015; @sorichetta2015]. This model identifies relationships between population totals and geospatial covariates at the coarse population input level to estimate population counts at a finer resolution.
 
-In this tutorial, we will demonstrate how to implement this method in the R statistical programming environment. We will adapt the method to estimate population counts for census enumeration areas (EAs) rather than 100 m grid cells. To demonstrate the approach, we will dissaggregate population totals from municipalities in Brazil to estimate populations in finer-scale census EAs (Fig. \@ref(fig:boundaries)).
+In this tutorial, we will demonstrate how to implement this method in the R statistical programming environment. We will adapt the method to estimate population counts for census enumeration areas (EAs) rather than 100 m grid cells. To demonstrate the approach, we will dissaggregate population totals from municipalities in Brazil to estimate populations in finer-scale census EAs (Fig. \@ref(fig:boundaries)). 
 
 ```{r boundaries, echo=F, eval=T, warning=T, fig.cap='Example of enumeration area boundaries in Brazil', out.width = "70%", fig.align="center"}
 
 knitr::include_graphics('dat/top-down-tutorial/boundaries.png')
 
 ```
+
+The extent of the study area is defined by the spatial coverage of the municipalities for which we have population totals. The top-down method cannot estimate populations for enumeration areas within municipalities where population totals are unknown.
 
 # Background 
 
@@ -63,7 +65,7 @@ install.packages('randomForest')
 
 Once installed, you must load the `randomForest` package into your R environment.
 
-```{r, eval=T, messages=F}
+```{r, eval=T, message=F, warning=F}
 library(randomForest)
 ```
 
@@ -102,13 +104,11 @@ head(master_train[,1:5]) # only showing first five columns
 head(master_predict[,1:4]) # only showing first four columns
 ```
 
-
-
 Notice that only the municipality-level dataset `master_train.csv` contains a column for population. The EA-level dataset does not contain a column for population, and it is the goal of this tutorial to estimate those EA-level populations based on the EA-level covariates in `master_predict.csv`.  
 
 Also, notice that the column names for the covariates are exactly the same in the municipality-level dataset and the EA-level dataset. All of the municipality-level covariates used to train the model must also be available at the EA level for the model predictions.  
 
-The `geo_code` column contains a numeric identifier for each municipality and will be used in later steps to identify the municipality that each EA belongs to.
+The `geo_code` column contains a numeric identifier for each municipality and will be used in later steps to identify the municipality that each EA belongs to. Boundaries of enumeration areas in Brazil roughly follow municipality boundaries (i.e. enumeration areas are nested within municipalities), but the boundaries are not harmonized exactly. We assigned each enumeration area to the municipality that contained the majority of its area.
 
 **Note:** We derived the two spreadsheets (`master_train.csv` and `master_predict.csv`) from the following sources:  
 
@@ -137,7 +137,7 @@ y_data <- master_train$pop / master_train$area
 y_data <- log(y_data)
 ```
 
-We use log population density as the response variable rather than population counts for two main reasons. First, population densities are more comparable than counts among spatial units of varying sizes (e.g. municipalities and EAs). Second, the logarithm transformation reshapes the response variable as a Gaussian distribution, better inline with the distributions of covariates [@stevens2015] (Fig. \@ref(fig:hist)).
+We use log population density as the response variable rather than population counts for two main reasons. First, population densities are more comparable than counts among spatial units of varying sizes (e.g. municipalities and EAs). Second, the logarithm transformation reshapes the response variable as a Gaussian distribution, better inline with the distributions of covariates [@stevens2015] (Fig. \@ref(fig:hist)). The `area` column in `master_train` is measured in square meters.
 
 ```{r hist, echo=F, eval=T, out.align="center", out.width="75%", fig.cap="Histogram of the log-transformed population density."}
 hist(y_data, main=NA, xlab="log(population_density)")
@@ -178,7 +178,7 @@ The model fitting process will identify relationships between the response varia
 
 Before running the random forest model, we need to identify appropriate values for each argument of the `randomForest()` and/or `tuneRF()` functions. See `?randomForest` and `?tuneRF` for detailed descriptions of all arguments to the functions. 
 
-A critical argument in `randomForest()` function is `mtry`, the number of randomly selected variables for evaluating the best split at each node in a regression tree within the random forest model. This process is at the root of the randomness in *random* forest models. To find the optimal `mtry` value we use the function `tuneRF()` that compares different models based on their "out-of-bag" error rates. 
+A critical argument in `randomForest()` function is `mtry`, the number of randomly selected variables for evaluating the best split at each node in a regression tree within the random forest model. This process is at the root of the randomness in *random* forest models. To find the optimal `mtry` value, we use the function `tuneRF()` that compares different models based on their "out-of-bag" error rates. 
 
 **Note:** Out-of-bag error is a form of cross-validation that is calculated by comparing model predictions to observed data from EAs that were randomly selected to be witheld from model fitting (i.e. held "out-of-bag") for an iteration of the model (i.e. a single regression tree in the random forest model).
 
@@ -186,7 +186,7 @@ During each iteration of a random forest model, a regression tree is fit to a ra
 
 Our specifications for other parameters followed Bondarenko et al. [-@bondarenko2018].
 
--   **ntree**: Number of trees to grow. There is no issue of overfitting when adding additional trees. We opt for the global default of 500.
+-   **ntree**: Number of trees to grow. There is no issue of overfitting when adding additional trees. We opt for 500, the default value of the `randomForest()` function.
 
 -   **importance**: If `TRUE`, the model will calculate the covariate importance for further analysis. We opt for `TRUE`.
 
@@ -214,24 +214,35 @@ popfit <- tuneRF(x=x_data,
                  replace=TRUE) # sample with replacement
 ```
 
-The `popfit` object contains the fitted random forest model. We will save it to our hard drive:
+```{r, eval=T, echo=F, results=F}
+load('dat/top-down-tutorial/popfit.Rdata')
+```
+
+The `popfit` object contains the fitted random forest model. We can see the items within the object:
+
+```{r, eval=T}
+names(popfit)
+```
+
+We can retrieve individual values, such as the value of the `mtry` setting that was selected by the `tuneRF` function.
+
+```{r, eval=T}
+popfit$mtry
+```
+
+See the "Value" section in the help for the randomForest function `?randomForest::randomForest` for an explanation of each value.  
+
+We will now save the `popfit` object to our hard drive.
 
 ```{r, eval=F}
-# save model
-save(popfit, 'popfit.Rdata')
+save(popfit, file='popfit.Rdata')
 ```
 
 We can load the fitted model back into our R environment later using:
 
 ```{r, eval=F}
-# load model
 load('popfit.Rdata')
 ```
-
-```{r, eval=T, echo=F, results=F}
-load('dat/top-down-tutorial/popfit.Rdata')
-```
-
 
 ## EA-level Predictions
 
@@ -463,7 +474,7 @@ The previous sections demonstrated the basic components of random forest top-dow
 
 ## Map Results
 
-If you want to view the EA-level population estimates on a map, you will need to join the model results (from section [EA-level Predictions] above) to polygon features for use with GIS software (e.g. Esri polygon shapefile).  
+If you want to view the EA-level population estimates on a map (e.g. Fig. \@ref(fig:in-out)), you will need to join the model results (from section [EA-level Predictions] above) to polygon features for use with GIS software (e.g. Esri polygon shapefile).  
 
 For this step, we will need to install and load the `sf` package [@pebesma2018simple] to read and manipulate GIS vector data (census EAs, in this case).
 
@@ -478,7 +489,9 @@ Then, we need to load a vector GIS data set containing the polygons that we woul
 sf_polygons <- st_read('BR_Setores_2019.shp')
 ```
 
-For this example, we are using Brazilian census enumeration area polygons which are openly available online as an Esri polygon shapefile [@ibge2020population]. Note that the `st_read` function can read most GIS file formats (e.g. Esri shapefile, geopackage, geojson).  See `?sf::st_read` for more information.
+For this example, we are using Brazilian census enumeration area polygons which are openly available online as a polygon shapefile [@ibge2020meshes]. 
+
+**Note:** The `st_read` function can read most GIS file formats (e.g. Esri shapefile, geopackage, geojson).  See `?sf::st_read` for more information.
 
 We will add an ID column that matches the enumeration area IDs from the `EA_id` column of the `master_predict` data.frame object (continuing from previous sections of this tutorial).
 
@@ -567,10 +580,10 @@ This mastergrid raster for Brazil is publicly available from WorldPop [-@worldpo
 Cell IDs for a raster are a numerical sequence starting from 1 in the top-left corner of the raster and increasing left-to-right. There are more than 2.5 billion grid cells in Brazil's mastergrid and more than one billion contain non-NA values. We want to identify the cell IDs for all cells with a non-NA value. Because Brazil contains so many grid cells, we will subset the mastergrid for processing.
 
 ```{r, eval=F}
-cells <- which(!is.na(mastergrid[1:1e8]))
+cells <- which(!is.na(mastergrid[1:1e7]))
 ```
 
-The new vector object `cells` will contain the cell IDs for the first 100 million grid cells (i.e. cells 1 to 1e8) in the mastergrid that contain non-NA values. We will continue with only this subset of the data to demonstrate how to generate gridded population estimates. In practice, we may want to process all of the grid cells at once (if computing power allows) or loop through one subset of cell IDs at a time (e.g. using a for loop) until all cell IDs are processed.   
+The new vector object `cells` will contain the cell IDs from the mastergrid that contain non-NA values. We are only processing the first 10 million grid cells (i.e. cells 1 to 1e7) in the mastergrid. We will continue the example using only this subset of the data to demonstrate how to generate gridded population estimates. In practice, we may want to process all of the grid cells at once (if computing power allows) or loop through one subset of cell IDs at a time (e.g. using a for loop) until all cell IDs are processed.   
 
 We will now setup a data.frame with a column for the cell IDs.
 
@@ -720,9 +733,11 @@ master_predict <- merge(master_predict,
 This tutorial was written by Doug Leasure and Edith Darin from the WorldPop Research Group at the University of Southampton with oversight from Andy Tatem. This work was part of a WorldPop collaboration with the Brazilian Institute of Geography and Statistics (IBGE), United Nations Population Fund (UNFPA), and the Environmental Systems Research Institute (Esri). 
 
 # Suggested Citation {-}
-Leasure DR, Darin E, Tatem AJ. 2020. Top-down disaggregation of municipality population totals to estimate populations in smaller enumeration areas: An R tutorial. WorldPop, University of Southampton. doi:10.5258/SOTON/WP00697.
+Leasure DR, Darin E, Tatem AJ. 2020. Small area population estimates using random forest top-down disaggregation: An R tutorial. WorldPop, University of Southampton. doi:10.5258/SOTON/WP00697.
 
 # License {-}
-You are free to copy and redistribute this tutorial under the terms of a <a href="https://creativecommons.org/licenses/by-nd/4.0/" target="_blank">CC BY-ND 4.0</a> license.
+You are free to redistribute this tutorial under the terms of a <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank">CC BY 4.0</a> license.
+
+*WorldPop, University of Southampton, and their sponsors offer these data on a "where is, as is" basis; do not offer an express or implied warranty of any kind; do not guarantee the quality, applicability, accuracy, reliability or completeness of any data provided; and shall not be liable for incidental, consequential, or special damages arising out of the use of any data that they offer. If users encounter apparent errors or misstatements, they should contact WorldPop at release@worldpop.org.*
 
 # References {-}

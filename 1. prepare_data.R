@@ -50,7 +50,7 @@ pop_admin3 <- read.csv(file.path(data_path, 'population/pop_projections_2020_mun
 # IBGE census EAs(public)
 # http://geoftp.ibge.gov.br/organizacao_do_territorio/malhas_territoriais/malhas_de_setores_censitarios__divisoes_intramunicipais/2019/Malha_de_setores_(shp)_Brasil/
 EA_poly <- st_read(file.path(data_path, 'censusEAs/BR_Setores_2019.shp'), stringsAsFactors = F)
-
+EA_poly$EA_id <- 1:nrow(EA_poly)
 
 
 # 2. Create covariates dataset  ---------------------------------------------------
@@ -66,7 +66,7 @@ tic() # 1h
 cov_EA <- exact_extract(raster_stack, EA_poly, fun='mean', progress=T, force_df=T, stack_apply=T)
 toc() 
 
-cov_EA$EA_id <- EA_poly$CD_SETOR
+cov_EA$EA_id <- EA_poly$EA_id # EA_poly$CD_SETOR
 
 # Extract zonal statistics for every municipality 
 tic() # 22 min
@@ -108,7 +108,7 @@ EA_admin3 <- exact_extract(admin3_raster, EA_poly, fun='mode', force_df=T)
 toc() 
 
 # Join covariates value
-EA_admin3$EA_id <- EA_poly$CD_SETOR
+EA_admin3$EA_id <- EA_poly$EA_id
 
 master_predict <- EA_admin3 %>% 
   mutate(geo_code = as.character(mode)) %>% 

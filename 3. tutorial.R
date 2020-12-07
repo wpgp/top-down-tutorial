@@ -11,6 +11,7 @@ if(local){
 } else {
   setwd("//worldpop.files.soton.ac.uk/worldpop/Projects/WP517763_GRID3/Working/git/top-down-tutorial")
 }
+
 #--
 
 # training data from municipalities
@@ -66,6 +67,14 @@ popfit <- tuneRF(x=x_data,
                  importance=TRUE, 
                  sampsize=length(y_data), # size of the sample to draw for OOB
                  replace=TRUE) # sample with replacement
+
+#--
+
+names(popfit)
+
+#--
+
+popfit$mtry
 
 #--
 
@@ -254,19 +263,19 @@ if(F){
   
   mastergrid <- raster('../../wd/in/bra_level0_100m_2000_2020.tif')
   
-  cells <- which(!is.na(mastergrid[]))
+  cells <- which(!is.na(mastergrid[1:1e7]))
   
   mastergrid_predict <- data.frame(row.names = cells)
   
   
   raster_covariate <- raster('../../wd/in/covariates/bra_viirs_100m_2016.tif')
   
-  mastergrid_predict$bra_viirs_100m_2016 <- raster_covariate[cells]
+  mastergrid_predict[cells, 'bra_viirs_100m_2016'] <- raster_covariate[cells]
   
   
   xy <- xyFromCell(mastergrid, cells)
   
-  mastergrid_predict$bra_viirs_100m_2016_alt <- extract(raster_covariate, xy)
+  mastergrid_predict[cells, 'bra_viirs_100m_2016_alt'] <- extract(raster_covariate, xy)
   
   write.csv(mastergrid_predict,
             file = 'mastergrid_predict.csv',
