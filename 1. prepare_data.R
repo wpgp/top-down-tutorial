@@ -160,16 +160,3 @@ x <- c(x, sort(names(master_predict)[!names(master_predict) %in% x], decreasing=
 fwrite(master_predict[,x], file.path(output_path, "master_predict.csv"))
 
 
-# 6. Copy over to tutorial folder -----------------------------------------
-
-if(local){
-  input_path <- '../wd/out/'
-} else {
-  input_path <- "//worldpop.files.soton.ac.uk/worldpop/Projects/WP517763_GRID3/Working/git/top-down-tutorial/out"
-}
-
-file.copy(from = c(file.path(input_path, 'master_train.csv'), file.path(input_path, 'master_predict.csv')),
-          to = c('../dat/top-down-tutorial/master_train.csv','../dat/top-down-tutorial/master_predict.csv'),
-          overwrite = T)
-
-

@@ -4,23 +4,31 @@
 # packages
 library(randomForest) # estimating random forest model
 
+## setup tutorial directory
+setwd(dirname(rstudioapi::getSourceEditorContext()$path))
+
+dir.create('dat/top-down-tutorial', recursive=T, showWarnings=F)
+
+file.copy(from = 'wd/out/master_predict.csv',
+          to = 'dat/top-down-tutorial/master_predict.csv',
+          overwrite = TRUE)
+file.copy(from = 'wd/out/master_train.csv',
+          to = 'dat/top-down-tutorial/master_train.csv',
+          overwrite = TRUE)
+
 # working directory
-local <- T
-if(local){
-  setwd(file.path(dirname(rstudioapi::getSourceEditorContext()$path),'dat/top-down-tutorial'))
-} else {
-  setwd("//worldpop.files.soton.ac.uk/worldpop/Projects/WP517763_GRID3/Working/git/top-down-tutorial")
-}
+setwd(file.path(dirname(rstudioapi::getSourceEditorContext()$path),'dat/top-down-tutorial'))
+
 
 #--
 
 # training data from municipalities
 master_train <- read.csv("master_train.csv")
 
-head(master_train[,1:5]) # only showing first five columns
-
 # covariates from enumeration areas
 master_predict <- read.csv("master_predict.csv")
+
+head(master_train[,1:5]) # only showing first five columns
 
 head(master_predict[,1:4]) # only showing first four columns
 
@@ -174,6 +182,16 @@ abline(h=0, col='red')
 
 #--
 
+# for covariate importance
+varImpPlot(popfit, type=1)
+
+#--
+
+# for covariate importance
+varImpPlot(popfit, type=2) 
+
+#--
+
 layout(matrix(1:2, nrow=1))
 
 for(cov_name in c('mean.bra_srtm_slope_100m', 'mean.bra_viirs_100m_2016')){
@@ -248,7 +266,7 @@ if(F){
   raster_covariate <- raster('../../wd/in/covariates/bra_viirs_100m_2016.tif')
   
   sf_polygons$mean.bra_viirs_100m_2016 <- exact_extract(x = raster_covariate,
-                                                        y = sf_polygons,
+                                                        y = sf_polygons[1:100,],
                                                         fun = 'mean')
   
   write.csv(st_drop_geometry(sf_polygons), 

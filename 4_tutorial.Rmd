@@ -137,7 +137,7 @@ y_data <- master_train$pop / master_train$area
 y_data <- log(y_data)
 ```
 
-We use log population density as the response variable rather than population counts for two main reasons. First, population densities are more comparable than counts among spatial units of varying sizes (e.g. municipalities and EAs). Second, the logarithm transformation reshapes the response variable as a Gaussian distribution, better inline with the distributions of covariates [@stevens2015] (Fig. \@ref(fig:hist)). The `area` column in `master_train` is measured in square meters.
+We use log population density as the response variable rather than population counts for two main reasons. First, population densities are more comparable than counts among spatial units of varying sizes (e.g. municipalities and EAs). Second, the logarithm transformation reshapes the response variable as a Gaussian distribution, better inline with the distributions of covariates [@stevens2015] (Fig. \@ref(fig:hist)). Note that `master_train$area` is measured in square meters in this case but any unit of area will work.
 
 ```{r hist, echo=F, eval=T, out.align="center", out.width="75%", fig.cap="Histogram of the log-transformed population density."}
 hist(y_data, main=NA, xlab="log(population_density)")
@@ -470,7 +470,18 @@ for(cov_name in c('mean.bra_srtm_slope_100m', 'mean.bra_viirs_100m_2016')){
 
 # Tips and Tricks
 
-The previous sections demonstrated the basic components of random forest top-down disaggregation, but there are additional tips and tricks that may be useful.
+The previous sections demonstrated the basic components of random forest top-down disaggregation, but there are additional tips and tricks that may be useful.  
+
+This section utilizes several source files that we did not include with the tutorial because they are large files that are publicly available from their original sources. These source files are:  
+
+1. [Enumeration area boundaries](http://geoftp.ibge.gov.br/organizacao_do_territorio/malhas_territoriais/malhas_de_setores_censitarios__divisoes_intramunicipais/2019/Malha_de_setores_(shp)_Brasil/) for Brazil [@ibge2020meshes],  
+
+2. [VIIRS nighttime lights](ftp://ftp.worldpop.org/GIS/Covariates/Global_2000_2020/BRA/VIIRS/) from 2016 [@worldpop2018geospatial], and    
+
+3. [WorldPop mastergrid](ftp://ftp.worldpop.org/GIS/Mastergrid/Global_2000_2020/BRA/L0/) for Brazil [@worldpop2018mastergrid].
+
+**Note:** The code below will assume that these source files have been downloaded and unzipped (if applicable) into your working directory.  
+
 
 ## Map Results
 
@@ -483,13 +494,11 @@ install.packages('sf')
 library('sf')
 ```
 
-Then, we need to load a vector GIS data set containing the polygons that we would like to join our model results to.
+Then, we need to load a vector GIS data set containing the polygons that we would like to join our model results to. For this example, we are using Brazilian census enumeration area polygons which are openly available online as a polygon shapefile [@ibge2020meshes].
 
 ```{r, eval=F}
 sf_polygons <- st_read('BR_Setores_2019.shp')
 ```
-
-For this example, we are using Brazilian census enumeration area polygons which are openly available online as a polygon shapefile [@ibge2020meshes]. 
 
 **Note:** The `st_read` function can read most GIS file formats (e.g. Esri shapefile, geopackage, geojson).  See `?sf::st_read` for more information.
 
@@ -542,15 +551,14 @@ raster_covariate <- raster('bra_viirs_100m_2016.tif')
 Next, we will calculate a zonal mean within each enumeration area using the object `sf_polygons` (from section [Map Results]).
 
 ```{r, eval=F}
-sf_polygons_proj <- st_transform(sf_polygons, as.character(crs(raster_covariate))) #we first convert it to the same crs
 sf_polygons$mean.bra_viirs_100m_2016 <- exact_extract(x = raster_covariate,
-                                                      y = sf_polygons_proj,
+                                                      y = sf_polygons,
                                                       fun = 'mean')
 ```
 
 Here, we saved the results into a new column of the `sf_polygons` data.frame called `mean.bra_viirs_100m_2016`.  
 
-**Note:** The [exactextractr README](https://cran.r-project.org/web/packages/exactextractr/readme/README.html) also demonstrates a simple workflow to calculate zonal statistics for Brazilian municipalities.
+**Note:** You may receive a warning message: `Polygons transformed to raster CRS (EPSG:NA)`. This indicates that the projection for `sf_polygons` was different than `raster_covariate`, and that a reprojection was performed internally by `exact_extract`. This does not affect our results, but we could have avoided the warning message by first reprojecting the covariate raster to match the polygons (see `?raster::projectRaster`) or by reprojecting the polygons to match the covariate raster (see `?sf::st_transform`).
 
 After we have calculated all of the zonal statistics that we need, we can save the `sf_polygons` data.frame to disk as a csv spreadsheet.
 
@@ -565,6 +573,9 @@ This would be comparable to `master_predict.csv` that we used as input data for 
 ```{r, eval=F}
 st_write(sf_polygons, 'EA_covariates.shp')
 ```
+
+**Note:** The [exactextractr README](https://cran.r-project.org/web/packages/exactextractr/readme/README.html) also demonstrates a simple workflow to calculate zonal statistics for Brazilian municipalities.
+
 
 ## Gridded Population Estimates
 
