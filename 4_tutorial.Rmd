@@ -25,17 +25,37 @@ knitr::include_graphics('dat/top-down-tutorial/boundaries.png')
 
 ```
 
-The extent of the study area is defined by the spatial coverage of the municipalities for which we have population totals. The top-down method cannot estimate populations for enumeration areas within municipalities where population totals are unknown.
+
+The following software will be needed to complete this tutorial:  
+
+1. [R environment](https://www.r-project.org/),  
+2. [ArcGIS](https://www.esri.com/) or [QGIS](https://www.qgis.org/) (optional to view results), and  
+3. [RStudio](https://rstudio.com/) (optional).
+
+The following pre-requisite skills will be helpful:  
+
+1. R programming language
+    - install and load packages
+    - load and manipulate data
+    - use R functions and objects
+2. Machine learning concepts
+    - predictor and response variables
+    - model fit
+3. GIS concepts
+    - raster and vector data
+    - zonal statistics  
 
 # Background 
 
-The modelling process consists of three steps:
+The modelling process consists of three steps (Fig. \@ref(fig:schema)):
 
 1.  Estimate the relationship between population density and geospatial covariates at the municipality level,
 2.  Predict population densities at the level of enumeration areas using the covariates, and 
 3.  Use predicted densities as a weighting layer to disaggregate the population totals for munipalities.
 
 The core product is the weighting layer that should reflect the spatial distribution of the population inside the municipalities. The final goal is to predict the population count in each enumeration area correctly. 
+
+The extent of the study area is defined by the spatial coverage of the municipalities for which we have population totals. The top-down method cannot estimate populations for enumeration areas within municipalities where population totals are unknown.
 
 ```{r schema, echo=F, eval=T, warning=T, fig.cap='Modelling Process', out.width = "100%", fig.align="center"}
 knitr::include_graphics('dat/top-down-tutorial/schema.jpg')
