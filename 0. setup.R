@@ -1,7 +1,7 @@
 # loads package dependencies and functions
 
 # install packages
-pkgs <- c('sf','raster','fasterize', 'tictoc', 'tidyverse', 'exactextractr', 'data.table')
+pkgs <- c('sf','raster','fasterize', 'randomForest', 'exactextractr')
 for(pkg in pkgs[!pkgs %in% installed.packages()]){
   install.packages(pkg)
 }

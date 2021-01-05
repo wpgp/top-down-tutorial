@@ -13,6 +13,7 @@ link-citations: yes
 csl: worldpop.csl
 ---
 
+
 # Introduction
 
 The purpose of top-down disaggregation is to estimate population counts at a finer spatial resolution than the available population totals for administrative units. [WorldPop top-down disaggregation](https://www.worldpop.org/methods/top_down_constrained_vs_unconstrained) implements a machine learning approach to disaggregate projected census totals to estimate population counts for 100 m grid cells [@stevens2015; @sorichetta2015]. This model identifies relationships between population totals and geospatial covariates at the coarse population input level to estimate population counts at a finer resolution.
@@ -25,25 +26,22 @@ knitr::include_graphics('dat/top-down-tutorial/boundaries.png')
 
 ```
 
+## Pre-requisites
 
-The following software will be needed to complete this tutorial:  
+The following software may be needed to complete this tutorial:  
 
 1. [R environment](https://www.r-project.org/),  
-2. [ArcGIS](https://www.esri.com/) or [QGIS](https://www.qgis.org/) (optional to view results), and  
-3. [RStudio](https://rstudio.com/) (optional).
+2. [RStudio](https://rstudio.com/) (optional), and
+3. [ArcGIS](https://www.esri.com/) or [QGIS](https://www.qgis.org/) (optional to view results).  
 
-The following pre-requisite skills will be helpful:  
+The following pre-requisite skills may be helpful:  
 
 1. R programming language
-    - install and load packages
-    - load and manipulate data
-    - use R functions and objects
+    - install packages, load and manipulate data
 2. Machine learning concepts
-    - predictor and response variables
-    - model fit
+    - predictor and response variables, model diagnostics
 3. GIS concepts
-    - raster and vector data
-    - zonal statistics  
+    - raster and vector data, zonal statistics  
 
 # Background 
 
@@ -398,7 +396,7 @@ plot(x = y_data,
 abline(a=0, b=1, col='red')
 ```
 
-**Note:** The predict function in this code will return "out-of-bag" predictions for every municipality because we did not give it a new prediction data set, like we did in the section [Model Predictions] (see`?predict.randomForest` for more info). The "out-of-bag"" predictions for a municipality are generated from only the regression trees from the model that did not include that municipality in their randomly sampled training data. This provides a cross-validation (a.k.a. out-of-bag, or out-of-sample) assessment.
+**Note:** The predict function in this code will return "out-of-bag" predictions for every municipality because we did not give it a new prediction data set, like we did in the section [EA-level Predictions] (see`?predict.randomForest` for more info). The "out-of-bag"" predictions for a municipality are generated from only the regression trees from the model that did not include that municipality in their randomly sampled training data. This provides a cross-validation (a.k.a. out-of-bag, or out-of-sample) assessment.
 
 Plotting the residuals versus the predictions allows us to detect any pattern towards over or underestimation.
 
