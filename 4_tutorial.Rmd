@@ -16,7 +16,7 @@ csl: worldpop.csl
 
 # Introduction
 
-The purpose of top-down disaggregation is to estimate population counts at a finer spatial resolution than the available population totals for administrative units. [WorldPop top-down disaggregation](https://www.worldpop.org/methods/top_down_constrained_vs_unconstrained) implements a machine learning approach to disaggregate projected census totals to estimate population counts for 100 m grid cells [@stevens2015; @sorichetta2015]. This model identifies relationships between population totals and geospatial covariates at the coarse population input level to estimate population counts at a finer resolution.
+The purpose of top-down disaggregation is to estimate population counts at a finer spatial resolution than the available population totals for administrative units. [WorldPop top-down disaggregation](https://www.worldpop.org/methods/top_down_constrained_vs_unconstrained) implements a dasymetric mapping approach that uses the random forest machine learning algorithm to disaggregate projected census totals to estimate population counts for 100 m grid cells [@stevens2015; @sorichetta2015]. This model estimate population counts at a finer resolution than the input population totals based on relationships with high resolution geospatial covariates.
 
 In this tutorial, we will demonstrate how to implement this method in the R statistical programming environment. We will adapt the method to estimate population counts for census enumeration areas (EAs) rather than 100 m grid cells. To demonstrate the approach, we will dissaggregate population totals from municipalities in Brazil to estimate populations in finer-scale census EAs (Fig. \@ref(fig:boundaries)). 
 
@@ -140,6 +140,7 @@ The `geo_code` column contains a numeric identifier for each municipality and wi
 
 5. WorldPop's [geospatial covariate rasters](ftp://ftp.worldpop.org/GIS/Covariates/Global_2000_2020/BRA/) for Brazil [@lloyd2019global; @lloyd2017high].
 
+See the section [Zonal Statistics] for more information about how the input data were created.
 
 # Random Forest
 
@@ -212,7 +213,7 @@ Our specifications for other parameters followed Bondarenko et al. [-@bondarenko
 
 ### Run the Model
 
-Once we have decided on appropriate settings, we will input them as arguments to the `tuneRF()` function.
+Once we have decided on appropriate settings, we will input them as arguments to the `tuneRF()` function (note: this may take several minutes to run).
 
 ```{r, eval=F}
 # model fitting
@@ -262,9 +263,9 @@ We can load the fitted model back into our R environment later using:
 load('popfit.Rdata')
 ```
 
-## EA-level Predictions
+## Weighting Layer
 
-We will use the fitted model to predict population counts for each enumeration area (EA). The EA-level covariate data `master_predict.csv` contains `r nrow(master_predict)` rows, one for each EA in Brazil. 
+We will use the fitted model to create a weighting layer that will be used to redistribute the population totals for municipalities into the enumeration areas (EA) within them. The EA-level covariate data `master_predict.csv` contains `r nrow(master_predict)` rows, one for each EA in Brazil. 
 
 We will first use the fitted random forest model to generate raw model predictions for each EA and save them as a column in the `master_predict` data.frame:
 
@@ -275,34 +276,42 @@ master_predict$predicted <- predict(popfit,
 
 ```
 
-We will convert the raw model predictions into the estimated population for an EA using the following formula:
+The weights are then calculated from the model predictions using the following formula:
 
 \begin{equation}
-population_{i} = total_j  \frac{exp(predicted_{i})}{\sum_{i=1}^{I_j}{exp(predicted_{i})}}
+weight_{i} = \frac{exp(predicted_{i})}{\sum_{i=1}^{I_j}{exp(predicted_{i})}}
+(\#eq:weights)
+\end{equation}
+
+where $predicted_i$ is the model prediction for enumeration area $i$, and $I_j$ is the total number of enumeration areas in municipality $j$. These weights represent the proportion of the population from municipality $j$ that lives in enumeration area $i$. 
+
+## Redistribution to EA-level
+
+We will now use the weights to estimate the population for each enumeration area $i$ using the following formula:
+
+\begin{equation}
+population_{i} = total_j \times weight_{i}
 (\#eq:prediction)
 \end{equation}
 
-where $predicted_i$ is the model prediction for enumeration area $i$ and $total_j$ is the population total for municipality $j$.  $I_j$ is the total number of enumeration areas in municipality $j$.  Notice how the model predictions are being used as a weighting factor (i.e. the fraction in the equation) to estimate the proportion of the population from municipality $j$ that lives in enumeration area $i$. We will now work through this formula step-by-step in R.  
+where $total_j$ is the population total for municipality $j$ and $weight_i$ is the proportion of the population that lives in enumeration area $i$ (Eq. \@ref(eq:weights)). We will now work through this formula step-by-step in R.  
 
-First, we will exponentiate the predictions and save them as a column in `master_predict`:
+First, we will exponentiate the predictions (numerator from Eq. \@ref(eq:weights)) and save them as a column in `master_predict`:
 
 ```{r, eval=T}
 # back-transform predictions to natural scale
 master_predict$predicted_exp <- exp(master_predict$predicted)
 ```
 
-We need to exponentiate the predictions because we log-transformed the population densities that we used as the response variable for training the model. Therefore, the model predictions are population densities on the log-scale. We exponentiate them to derive the predicted population densities that we will use as weighting factors to disaggregate the municipality-level population totals. These exponentiated predictions will be used as the numerator in the fraction shown in Eq. \@ref(eq:prediction).
+We need to exponentiate the predictions because we log-transformed the population densities that we used as the response variable for training the model. Therefore, the model predictions are population densities on the log-scale. We exponentiate them to derive the predicted population densities that we will use as weighting factors to disaggregate the municipality-level population totals. 
 
-Next, we will sum the predicted population densities among EAs in each municipality and merge the results into `master_predict` using the `geo_code` column to match municipalities:
+Next, we will sum the predicted population densities among EAs in each municipality (denominator from Eq. \@ref(eq:weights)) and merge the results into `master_predict` using the `geo_code` column to match municipalities:
 
 ```{r, eval=T}
 # sum exponentiated predictions among EAs in each municipality
-predicted_exp_sum <- aggregate(master_predict$predicted_exp, 
+predicted_exp_sum <- aggregate(list(predicted_exp_sum=master_predict$predicted_exp), 
                                by = list(geo_code=master_predict$geo_code), 
                                FUN = sum)
-
-# modify column names
-names(predicted_exp_sum) <- c('geo_code','predicted_exp_sum')
 
 # merge predicted_exp_sum into master_train based on geo_code
 master_predict <- merge(master_predict, 
@@ -311,7 +320,7 @@ master_predict <- merge(master_predict,
 
 ```
 
-These sums will be used as the denominator in the fraction shown in Eq. \@ref(eq:prediction) to scale the exponentiated model predictions to sum to one among EAs in each municipality.
+These sums (i.e. the denominator from Eq. \@ref(eq:weights)) are used to scale the exponentiated model predictions to sum to one among EAs in each municipality.
 
 Then, we will merge the total populations for each municipality into `master_predict`, again using the `geo_code` column to match EAs to the correct municipalities:
 
@@ -325,14 +334,14 @@ master_predict <- merge(master_predict,
 names(master_predict)[ncol(master_predict)] <- 'pop_municipality'
 ```
 
-We have now added all of the required information from Eq. \@ref(eq:prediction) into the `master_predict` data.frame. We will calculate the EA-level population estimates and add them to `master_predict` as a column:
+We have now added all of the required information from Eqs. \@ref(eq:prediction) and \@ref(eq:weights) into the `master_predict` data.frame. We will calculate the EA-level population estimates and add them to `master_predict` as a column:
 
 ```{r, eval=T}
 # calculate EA-level population estimates
 master_predict$predicted_pop <- with(master_predict, predicted_exp / predicted_exp_sum * pop_municipality)
 ```
 
-Notice that this line of code is equivalent to Eq. \@ref(eq:prediction).
+Notice that this line of code is equivalent to Eqs. \@ref(eq:prediction) and \@ref(eq:weights).
 
 We have now disaggregated the population totals from `r nrow(master_train)`  municipalities in Brazil into population estimates for `r nrow(master_predict)`  enumeration areas (Fig. \@ref(fig:in-out)).
 
@@ -362,10 +371,10 @@ test <- merge(test,
               by = 'geo_code')
 
 # test if estimates match muncipality population totals
-all(round(test$pop) == round(test$predicted_pop))
+all(test$pop == round(test$predicted_pop))
 ```
 
-If we fail this test (i.e. if the last line of code returns a value of FALSE), it could mean that there was an error in our implementation of Eq. \@ref(eq:prediction) because that equation should re-scale the EA-level population estimates so that they always sum to the population totals for each municipality. This test does not assess the goodness-of-fit for the random forest model.
+If we fail this test (i.e. if the last line of code returns a value of FALSE), it could mean that there was an error in our implementation of Eq. \@ref(eq:prediction) or Eq. \@ref(eq:weights) because that equation should re-scale the EA-level population estimates so that they always sum to the population totals for each municipality. This test does not assess the goodness-of-fit for the random forest model.
 
 ### Goodness-of-Fit
 
@@ -396,7 +405,7 @@ plot(x = y_data,
 abline(a=0, b=1, col='red')
 ```
 
-**Note:** The predict function in this code will return "out-of-bag" predictions for every municipality because we did not give it a new prediction data set, like we did in the section [EA-level Predictions] (see`?predict.randomForest` for more info). The "out-of-bag"" predictions for a municipality are generated from only the regression trees from the model that did not include that municipality in their randomly sampled training data. This provides a cross-validation (a.k.a. out-of-bag, or out-of-sample) assessment.
+**Note:** The predict function in this code will return "out-of-bag" predictions (i.e. weights) for every municipality because we did not give it a new prediction data set, like we did in the section [Weighting Layer] (see`?predict.randomForest` for more info). The "out-of-bag"" predictions for a municipality are generated from only the regression trees from the model that did not include that municipality in their randomly sampled training data. This provides a cross-validation (a.k.a. out-of-bag, or out-of-sample) assessment.
 
 Plotting the residuals versus the predictions allows us to detect any pattern towards over or underestimation.
 
@@ -503,7 +512,7 @@ This section utilizes several source files that we did not include with the tuto
 
 ## Map Results
 
-If you want to view the EA-level population estimates on a map (e.g. Fig. \@ref(fig:in-out)), you will need to join the model results (from section [EA-level Predictions] above) to polygon features for use with GIS software (e.g. Esri polygon shapefile).  
+If you want to view the EA-level population estimates on a map (e.g. Fig. \@ref(fig:in-out)), you will need to join the model results (from section [Redistribution to EA-level] above) to polygon features for use with GIS software (e.g. Esri polygon shapefile).  
 
 For this step, we will need to install and load the `sf` package [@pebesma2018simple] to read and manipulate GIS vector data (census EAs, in this case).
 
@@ -647,7 +656,7 @@ write.csv(mastergrid_predict,
           row.names = FALSE)
 ```
 
-This spreadsheet could be used in exactly the same way as `master_predict.csv` was used above to generate model predictions (see section [EA-level Predictions]). Because there are so many grid cells in Brazil where predictions are needed we would likely want to use parallel processing to speed up the calculations (see [Parallel Processing] section below). With either approach, we would generate a new column called `predicted_pop` in the `master_predict` data.frame that would contain the population estimates for each grid cell. 
+This spreadsheet could be used in exactly the same way as `master_predict.csv` was used above to generate model predictions (see section [Weighting Layer]). Because there are so many grid cells in Brazil where predictions are needed we would likely want to use parallel processing to speed up the calculations (see [Parallel Processing] section below). With either approach, we would generate a new column called `predicted_pop` in the `master_predict` data.frame that would contain the population estimates for each grid cell. 
 
 After we have these model predictions in tabular form in `master_predict`, we would then want to rasterize those results. First, we create an empty raster.
 
@@ -672,7 +681,7 @@ writeRaster(raster_predict,
 
 ## Parallel Processing
 
-Parallel processing can improve processing speed when the study area contains a large number of spatial units where predictions are required (i.e. grid cells or polygons). For parallel processing, we will split the data into chunks that will be processed simultaneously using all of the processing cores available in our computer.  The process that we described above to generate model predictions (see section [EA-level Predictions]) used only a single processing core even if your computer had four or more cores available.
+Parallel processing can improve processing speed when the study area contains a large number of spatial units where predictions are required (i.e. grid cells or polygons). For parallel processing, we will split the data into chunks that will be processed simultaneously using all of the processing cores available in our computer.  The process that we described above to generate model predictions (see section [Weighting Layer]) used only a single processing core even if your computer had four or more cores available.
 
 In the example from the previous section ([Gridded Population Estimates]), we saw that Brazil contained more than one billion grid cells where we would need model predictions. This would likely require parallel processing to generate model predictions efficiently. For a simple and efficient example, we will demonstrate parallel processing using the EA-level data in `master_predict` that will allow you to explore the process easily. When you are comfortable with the process, it can also be applied to the much larger data set in `mastergrid_predict`.
 
@@ -708,7 +717,7 @@ predict_pop <- function(df, model=popfit){
 }
 ```
 
-The `df` argument of the function will be a subset of rows from `master_predict` and the `model` argument is the fitted random forest object `popfit`.  This function generates model predictions using the `predict` function from the `randomForest` package and then it back-transforms the predicted log-densities to the natural scale. It then calculates weights from those densities and multiplies the weights by the total population for the municipality that each grid cell belongs to (note: these are the same steps as in section [EA-level Predictions]). The results are returned as a data.frame with an "id" column and a column containing the predictions.  
+The `df` argument of the function will be a subset of rows from `master_predict` and the `model` argument is the fitted random forest object `popfit`.  This function generates model predictions using the `predict` function from the `randomForest` package and then it back-transforms the predicted log-densities to the natural scale. It then calculates weights from those densities and multiplies the weights by the total population for the municipality that each grid cell belongs to (note: these are the same steps as in section [Redistribution to EA-level]). The results are returned as a data.frame with an "id" column and a column containing the predictions.  
 
 Now, we will add an "id" column into `master_predict` that we will later use to merge the predictions back into this data.frame.
 
@@ -757,7 +766,7 @@ master_predict <- merge(master_predict,
                         by = 'id')
 ```
 
-**Note:** We have demonstrated parallel processing using the EA-level data in `master_predict`. It is important to note that EA-level predictions do not take too long to compute using the simpler approach (see section [EA-level Predictions]). We recommend parallel processing only for larger tasks like generating gridded predictions from `mastergrid_predict`. We did not use this data in our example because it would potentially introduce complications that would distract from the demonstration of parallel processing, but the workflow that we demonstrated should be easily adaptable to accommodate any larger data sets. 
+**Note:** We have demonstrated parallel processing using the EA-level data in `master_predict`. It is important to note that EA-level predictions do not take too long to compute using the simpler approach (see section [Weighting Layer]). We recommend parallel processing only for larger tasks like generating gridded predictions from `mastergrid_predict`. We did not use this data in our example because it would potentially introduce complications that would distract from the demonstration of parallel processing, but the workflow that we demonstrated should be easily adaptable to accommodate any larger data sets. 
 
 # Contributions {-}
 This tutorial was written by Doug Leasure and Edith Darin from the WorldPop Research Group at the University of Southampton with oversight from Andy Tatem. This work was part of a WorldPop collaboration with the Brazilian Institute of Geography and Statistics (IBGE), United Nations Population Fund (UNFPA), and the Environmental Systems Research Institute (Esri). 
