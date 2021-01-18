@@ -16,7 +16,7 @@ csl: worldpop.csl
 
 # Introduction
 
-The purpose of top-down disaggregation is to estimate population counts at a finer spatial resolution than the available population totals for administrative units. [WorldPop top-down disaggregation](https://www.worldpop.org/methods/top_down_constrained_vs_unconstrained) implements a dasymetric mapping approach that uses the random forest machine learning algorithm to disaggregate projected census totals to estimate population counts for 100 m grid cells [@stevens2015; @sorichetta2015]. This model estimate population counts at a finer resolution than the input population totals based on relationships with high resolution geospatial covariates.
+The purpose of top-down disaggregation is to estimate population counts at a finer spatial resolution than the available population totals for administrative units. [WorldPop top-down disaggregation](https://www.worldpop.org/methods/top_down_constrained_vs_unconstrained) implements a dasymetric mapping approach that uses the random forest machine learning algorithm to disaggregate projected census totals to estimate population counts for 100 m grid cells [@stevens2015; @sorichetta2015]. This model estimates population counts at a finer resolution than the input population totals based on relationships with high resolution geospatial covariates.
 
 In this tutorial, we will demonstrate how to implement this method in the R statistical programming environment. We will adapt the method to estimate population counts for census enumeration areas (EAs) rather than 100 m grid cells. To demonstrate the approach, we will dissaggregate population totals from municipalities in Brazil to estimate populations in finer-scale census EAs (Fig. \@ref(fig:boundaries)). 
 
@@ -99,13 +99,13 @@ master_train <- read.csv("dat/top-down-tutorial/master_train.csv")
 master_predict <- read.csv("dat/top-down-tutorial/master_predict.csv")
 ```
 
-This tutorial includes two input data sets, provided as csv spreadsheets (comma-seperate-values text files):  
+This tutorial includes two input data sets, provided as csv spreadsheets (comma-separate-values text files):  
 
 1. **master_train.csv** Training data for the model that contains population totals and covariate values for `r nrow(master_train)`  municipalities in Brazil, and
 
 2. **master_predict.csv** Prediction data for the model that contains covariate values for `r nrow(master_predict)` enumeration areas where population estimates are needed.  
 
-We will load the datasets into our R environment using the `read.csv` function and display their top ten rows with the `head` function:
+We will load the datasets into our R environment using the `read.csv` function and display their top five rows with the `head` function:
 
 ```{r, eval=F}
 
@@ -170,13 +170,16 @@ The predictor data `x_data` for our random forest model must be a data.frame wit
 
 We build the predictor data `x_data` by subsetting the covariates from `master_train.csv` that we would like to include in our model.  Remember, we want to select covariates that will be good predictors of log population density.
 
-Our example data `master_train.csv` includes a few columns that are not covariates (e.g. `geo_code`) and so we do not want to include them in `x_data`. Our covariates all include the word "mean" in their column names because they were calculated as the mean value of underlying covariate rasters within each municipality.  So, we will use "mean" as a search term to identify the correct columns. This provides an example of selecting a subset of the predictors, but you could use other subsets, search terms, or methods of subsetting.
-
 ```{r, eval=T}
 # list all covariate names (i.e. column names)
 cols <- colnames(master_train)
 print(cols)
+```
 
+
+Our example data `master_train.csv` includes a few columns that are not covariates (e.g. `geo_code`) and so we do not want to include them in `x_data`. Our covariates all include the word "mean" in their column names because they were calculated as the mean value of underlying covariate rasters within each municipality.  So, we will use "mean" as a search term to identify the correct columns. This provides an example of selecting a subset of the predictors, but you could use other subsets, search terms, or methods of subsetting.
+
+```{r, eval=T}
 # select column names that contain the word 'mean'
 cov_names <- cols[grepl('mean', cols)] 
 print(cov_names)
@@ -203,7 +206,7 @@ A critical argument in `randomForest()` function is `mtry`, the number of random
 
 During each iteration of a random forest model, a regression tree is fit to a random sub-sample of the data. This prevents overfitting and also provides a built-in mechanism for cross-validation. The `sampsize` argument sets the sample size, and the `replace` argument defines the sampling strategy. In our case, we will define `sampsize` as the total count of observations (i.e. `r nrow(master_train)`  municipalities) and `replace` will be `TRUE` to sample *with replacement* from the training data.
 
-Our specifications for other parameters followed Bondarenko et al. [-@bondarenko2018].
+Our specifications for other parameters follow Bondarenko et al. [-@bondarenko2018].
 
 -   **ntree**: Number of trees to grow. There is no issue of overfitting when adding additional trees. We opt for 500, the default value of the `randomForest()` function.
 
@@ -405,7 +408,7 @@ plot(x = y_data,
 abline(a=0, b=1, col='red')
 ```
 
-**Note:** The predict function in this code will return "out-of-bag" predictions (i.e. weights) for every municipality because we did not give it a new prediction data set, like we did in the section [Weighting Layer] (see`?predict.randomForest` for more info). The "out-of-bag"" predictions for a municipality are generated from only the regression trees from the model that did not include that municipality in their randomly sampled training data. This provides a cross-validation (a.k.a. out-of-bag, or out-of-sample) assessment.
+**Note:** The predict function in this code will return "out-of-bag" predictions (i.e. weights) for every municipality because we did not give it a new prediction data set, like we did in the section [Weighting Layer] (see`?predict.randomForest` for more info). The "out-of-bag" prediction for a municipality is generated from the regression trees of the model that did not include that municipality in their randomly sampled training data. This provides a cross-validation (a.k.a. out-of-bag, or out-of-sample) assessment.
 
 Plotting the residuals versus the predictions allows us to detect any pattern towards over or underestimation.
 
