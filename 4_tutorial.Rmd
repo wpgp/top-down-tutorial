@@ -377,7 +377,7 @@ test <- merge(test,
 all(test$pop == round(test$predicted_pop))
 ```
 
-If we fail this test (i.e. if the last line of code returns a value of FALSE), it could mean that there was an error in our implementation of Eq. \@ref(eq:prediction) or Eq. \@ref(eq:weights) because that equation should re-scale the EA-level population estimates so that they always sum to the population totals for each municipality. This test does not assess the goodness-of-fit for the random forest model.
+If we fail this test (i.e. if the last line of code returns a value of FALSE), it could mean that there was an error in our implementation of Eq. \@ref(eq:prediction) or Eq. \@ref(eq:weights) because those equations should re-scale the EA-level population estimates so that they always sum to the population totals for each municipality. This test does not assess the goodness-of-fit for the random forest model.
 
 ### Goodness-of-Fit
 
