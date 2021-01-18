@@ -772,7 +772,7 @@ master_predict <- merge(master_predict,
 **Note:** We have demonstrated parallel processing using the EA-level data in `master_predict`. It is important to note that EA-level predictions do not take too long to compute using the simpler approach (see section [Weighting Layer]). We recommend parallel processing only for larger tasks like generating gridded predictions from `mastergrid_predict`. We did not use this data in our example because it would potentially introduce complications that would distract from the demonstration of parallel processing, but the workflow that we demonstrated should be easily adaptable to accommodate any larger data sets. 
 
 # Contributions {-}
-This tutorial was written by Doug Leasure and Edith Darin from the WorldPop Research Group at the University of Southampton with oversight from Andy Tatem. This work was part of a WorldPop collaboration with the Brazilian Institute of Geography and Statistics (IBGE), United Nations Population Fund (UNFPA), and the Environmental Systems Research Institute (Esri). 
+This tutorial was written by Doug Leasure and Edith Darin from the WorldPop Research Group at the University of Southampton with oversight from Andy Tatem. This work was part of a WorldPop collaboration with the Brazilian Institute of Geography and Statistics (IBGE), United Nations Population Fund (UNFPA), and the Environmental Systems Research Institute (Esri). Attila Lazar and Chris Jochem provided internal reviews that helped improve the tutorial.
 
 # Suggested Citation {-}
 Leasure DR, Darin E, Tatem AJ. 2020. Small area population estimates using random forest top-down disaggregation: An R tutorial. WorldPop, University of Southampton. doi:10.5258/SOTON/WP00697.
