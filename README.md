@@ -6,6 +6,37 @@ WorldPop, University of Southampton
 
 
 
+-   [1 Introduction](#introduction)
+    -   [1.1 Pre-requisites](#pre-requisites)
+-   [2 Background](#background)
+-   [3 R Environment](#r-environment)
+    -   [3.1 Source Data](#source-data)
+-   [4 Random Forest](#random-forest)
+    -   [4.1 Response Variable](#response-variable)
+    -   [4.2 Predictor Variables](#predictor-variables)
+    -   [4.3 Model Fitting](#model-fitting)
+        -   [4.3.1 Settings](#settings)
+        -   [4.3.2 Run the Model](#run-the-model)
+    -   [4.4 Weighting Layer](#weighting-layer)
+    -   [4.5 Redistribution to EA-level](#redistribution-to-ea-level)
+    -   [4.6 Diagnostics](#diagnostics)
+        -   [4.6.1 Summing Enumeration
+            Areas](#summing-enumeration-areas)
+        -   [4.6.2 Goodness-of-Fit](#goodness-of-fit)
+        -   [4.6.3 EA-level Assessment](#ea-level-assessment)
+        -   [4.6.4 Covariate Importance](#covariate-importance)
+-   [5 Limitations](#limitations)
+-   [6 Tips and Tricks](#tips-and-tricks)
+    -   [6.1 Map Results](#map-results)
+    -   [6.2 Zonal Statistics](#zonal-statistics)
+    -   [6.3 Gridded Population
+        Estimates](#gridded-population-estimates)
+    -   [6.4 Parallel Processing](#parallel-processing)
+-   [Contributions](#contributions)
+-   [Suggested Citation](#suggested-citation)
+-   [License](#license)
+-   [References](#references)
+
 # 1 Introduction
 
 The purpose of top-down disaggregation is to estimate population counts
@@ -64,7 +95,7 @@ The following pre-requisite skills may be helpful:
 # 2 Background
 
 The modelling process consists of three steps (Fig.
-<a href="#fig:schema">2.1</a>):
+([**ref?**](#ref-ref))(fig:schema)):
 
 1.  Estimate the relationship between population density and geospatial
     covariates at the municipality level,
@@ -111,10 +142,9 @@ sets of covariates without *a priori* variable selection. However, a
 large number of covariates might impact running time, especially at the
 prediction stage, and it may be useful to select a subset of covariates
 based on the measures of covariate importance provided by the random
-forest algorithm ([Stevens et al. 2015](#ref-stevens2015), [Bondarenko
-et al. 2018](#ref-bondarenko2018)). While random forest predictions are
-robust to multi-collinearity among covariates, the measures of covariate
-importance may not be ([Genuer et al. 2010](#ref-genuer2010)).
+forest algorithm \[@stevens2015; @bondarenko2018\]. While random forest
+predictions are robust to multi-collinearity among covariates, the
+measures of covariate importance may not be \[@genuer2010\].
 
 To dive deeper on the subject of random forest, here are some online
 materials:
@@ -135,17 +165,16 @@ materials:
     from Breiman explaining the underlying maths.
 
 The implementation we will provide in this tutorial will follow the
-guidance set up by Bondarenko et al. ([2018](#ref-bondarenko2018)) to
-apply random forest for top-down disaggregation.
+guidance set up by Bondarenko et al. \[-@bondarenko2018\] to apply
+random forest for top-down disaggregation.
 
 # 3 R Environment
 
-This model will be implemented in the R programming language ([R Core
-Team 2020](#ref-r2020r)). Our first step is to setup the R environment
-so that it contains the R packages and data that we will need. The
-`randomForest` package ([Liaw & Wiener 2002](#ref-law2018)) implements
-the random forest algorithm in R. If you have not already installed it,
-then you will need to install it.
+This model will be implemented in the R programming language
+\[@r2020r\]. Our first step is to setup the R environment so that it
+contains the R packages and data that we will need. The `randomForest`
+package \[@law2018\] implements the random forest algorithm in R. If you
+have not already installed it, then you will need to install it.
 
 ``` r
 install.packages('randomForest')
@@ -237,25 +266,23 @@ contained the majority of its area.
 
 1.  Brazil’s [municipality
     boundaries](https://www.ibge.gov.br/en/geosciences/territorial-organization/regional-division/23708-brazilian-territorial-division.html?=&t=o-que-e)
-    ([IBGE 2019](#ref-ibge2019brazilian)),
+    \[@ibge2019brazilian\],
 
 2.  Brazil’s [2020 census
     projections](https://www.ibge.gov.br/en/statistics/social/18448-population-estimates.html?=&t=resultados)
-    for municipalities ([IBGE 2020a](#ref-ibge2020population)),
+    for municipalities \[@ibge2020population\],
 
 3.  Brazil’s [census EA
     boundaries](http://geoftp.ibge.gov.br/organizacao_do_territorio/malhas_territoriais/malhas_de_setores_censitarios__divisoes_intramunicipais/2019/Malha_de_setores_(shp)_Brasil/)
-    ([IBGE 2020b](#ref-ibge2020meshes)),
+    \[@ibge2020meshes\],
 
 4.  WorldPop’s
     [mastergrid](ftp://ftp.worldpop.org/GIS/Mastergrid/Global_2000_2020/BRA/L0/)
-    for Brazil ([WorldPop & CIESIN 2018a](#ref-worldpop2018mastergrid)),
-    and
+    for Brazil \[@worldpop2018mastergrid\], and
 
 5.  WorldPop’s [geospatial covariate
     rasters](ftp://ftp.worldpop.org/GIS/Covariates/Global_2000_2020/BRA/)
-    for Brazil ([Lloyd et al. 2017](#ref-lloyd2017high),
-    [2019](#ref-lloyd2019global)).
+    for Brazil \[@lloyd2019global; @lloyd2017high\].
 
 See the section [Zonal Statistics](#zonal-statistics) for more
 information about how the input data were created.
@@ -285,9 +312,9 @@ population counts for two main reasons. First, population densities are
 more comparable than counts among spatial units of varying sizes (e.g.
 municipalities and EAs). Second, the logarithm transformation reshapes
 the response variable as a Gaussian distribution, better inline with the
-distributions of covariates ([Stevens et al. 2015](#ref-stevens2015))
-(Fig. <a href="#fig:hist">4.1</a>). Note that `master_train$area` is
-measured in square meters in this case but any unit of area will work.
+distributions of covariates \[@stevens2015\] (Fig.
+<a href="#fig:hist">4.1</a>). Note that `master_train$area` is measured
+in square meters in this case but any unit of area will work.
 
 <div class="figure">
 
@@ -403,7 +430,7 @@ count of observations (i.e. 5568 municipalities) and `replace` will be
 `TRUE` to sample *with replacement* from the training data.
 
 Our specifications for other parameters follow Bondarenko et al.
-([2018](#ref-bondarenko2018)).
+\[-@bondarenko2018\].
 
 -   **ntree**: Number of trees to grow. There is no issue of overfitting
     when adding additional trees. We opt for 500, the default value of
@@ -728,11 +755,11 @@ enumeration area polygons (as in this tutorial) would provide greater
 flexibility for aggregating units to match the spatial units of the
 independent validation data.
 
-The second option is discussed by Stevens et al.
-([2015](#ref-stevens2015)). Its effectiveness depends on the size of the
-aggregated training dataset (e.g. the number of states). Indeed a
-coarser scale means a decreasing number of input observations, which
-undermines the quantity of information the random forest can extract.
+The second option is discussed by Stevens et al. \[-@stevens2015\]. Its
+effectiveness depends on the size of the aggregated training dataset
+(e.g. the number of states). Indeed a coarser scale means a decreasing
+number of input observations, which undermines the quantity of
+information the random forest can extract.
 
 ### 4.6.4 Covariate Importance
 
@@ -779,7 +806,7 @@ underestimated for large groups of correlated predictor variables.
 
     If running time becomes an issue, there are several solutions that
     are outlined in the random forest set-up of Bondarenko et al.
-    ([2018](#ref-bondarenko2018)).
+    \[-@bondarenko2018\].
 
     If the model takes too long to be fitted, one can play with the
     parameter `sampsize`, which has a great impact on modelling time or
@@ -788,11 +815,10 @@ underestimated for large groups of correlated predictor variables.
     goodness-of-fit metrics.
 
     If the prediction takes too much time, Stevens et al.
-    ([2015](#ref-stevens2015)) proposes to prune the number of
-    covariates based on their importance metric. We have also provided
-    an example of how to generate predictions more efficiently using
-    parallel processing (see [Parallel Processing](#parallel-processing)
-    section below).
+    \[-@stevens2015\] proposes to prune the number of covariates based
+    on their importance metric. We have also provided an example of how
+    to generate predictions more efficiently using parallel processing
+    (see [Parallel Processing](#parallel-processing) section below).
 
 2.  **Random Forest models are not good at extrapolating.**
 
@@ -866,16 +892,15 @@ from their original sources. These source files are:
 
 1.  [Enumeration area
     boundaries](http://geoftp.ibge.gov.br/organizacao_do_territorio/malhas_territoriais/malhas_de_setores_censitarios__divisoes_intramunicipais/2019/Malha_de_setores_(shp)_Brasil/)
-    for Brazil ([IBGE 2020b](#ref-ibge2020meshes)),
+    for Brazil \[@ibge2020meshes\],
 
 2.  [VIIRS nighttime
     lights](ftp://ftp.worldpop.org/GIS/Covariates/Global_2000_2020/BRA/VIIRS/)
-    from 2016 ([WorldPop & CIESIN 2018b](#ref-worldpop2018geospatial)),
-    and
+    from 2016 \[@worldpop2018geospatial\], and
 
 3.  [WorldPop
     mastergrid](ftp://ftp.worldpop.org/GIS/Mastergrid/Global_2000_2020/BRA/L0/)
-    for Brazil ([WorldPop & CIESIN 2018a](#ref-worldpop2018mastergrid)).
+    for Brazil \[@worldpop2018mastergrid\].
 
 **Note:** The code below will assume that these source files have been
 downloaded and unzipped (if applicable) into your working directory.
@@ -889,8 +914,8 @@ EA-level](#redistribution-to-ea-level) above) to polygon features for
 use with GIS software (e.g. Esri polygon shapefile).
 
 For this step, we will need to install and load the `sf` package
-([Pebesma 2018](#ref-pebesma2018simple)) to read and manipulate GIS
-vector data (census EAs, in this case).
+\[@pebesma2018simple\] to read and manipulate GIS vector data (census
+EAs, in this case).
 
 ``` r
 install.packages('sf')
@@ -900,8 +925,7 @@ library('sf')
 Then, we need to load a vector GIS data set containing the polygons that
 we would like to join our model results to. For this example, we are
 using Brazilian census enumeration area polygons which are openly
-available online as a polygon shapefile ([IBGE
-2020b](#ref-ibge2020meshes)).
+available online as a polygon shapefile \[@ibge2020meshes\].
 
 ``` r
 sf_polygons <- st_read('BR_Setores_2019.shp')
@@ -956,10 +980,9 @@ values or other summary statistics (e.g. median, mode, standard
 deviation, min, max). We will give a brief demonstration of how to do
 this.
 
-We will rely on the `raster` and `exactextractr` packages ([Daniel
-Baston 2020](#ref-bastan2020exactextractr), [Hijmans
-2020](#ref-hijmans2020raster)) for this step and so we will first
-install and load those packages:
+We will rely on the `raster` and `exactextractr` packages
+\[@hijmans2020raster; @bastan2020exactextractr\] for this step and so we
+will first install and load those packages:
 
 ``` r
 install.packages(c('raster','exactextractr'))
@@ -970,8 +993,7 @@ library('exactextractr')
 We already have polygon features `sf_polygons` loaded from the previous
 section ([Map Results](#map-results)). We will also need to load a
 covariate raster. We will use a nighttime lights raster for Brazil that
-is openly available ([WorldPop & CIESIN
-2018b](#ref-worldpop2018geospatial)).
+is openly available \[@worldpop2018geospatial\].
 
 ``` r
 raster_covariate <- raster('bra_viirs_100m_2016.tif')
@@ -1043,8 +1065,8 @@ mastergrid <- raster('bra_level0_100m_2000_2020.tif')
 ```
 
 This mastergrid raster for Brazil is publicly available from WorldPop
-([2018a](#ref-worldpop2018mastergrid)). In this mastergrid, any cells
-that contain a value of NA are outside of Brazil.
+\[-@worldpop2018mastergrid\]. In this mastergrid, any cells that contain
+a value of NA are outside of Brazil.
 
 Cell IDs for a raster are a numerical sequence starting from 1 in the
 top-left corner of the raster and increasing left-to-right. There are
@@ -1073,13 +1095,12 @@ mastergrid_predict <- data.frame(row.names = cells)
 ```
 
 Next, we will use the same covariate raster `raster_covariate` from the
-previous section ([Zonal Statistics](#zonal-statistics)) ([WorldPop &
-CIESIN 2018b](#ref-worldpop2018geospatial)). This raster has the exact
-same extent and cell size as the mastergrid. Because the two rasters
-have identical extent and cell size, their cell IDs are comparable
-allowing us to use our vector of cell IDs `cells` to extract values very
-quickly and save them as a new column in the data.frame
-`master_predict`.
+previous section ([Zonal Statistics](#zonal-statistics))
+\[@worldpop2018geospatial\]. This raster has the exact same extent and
+cell size as the mastergrid. Because the two rasters have identical
+extent and cell size, their cell IDs are comparable allowing us to use
+our vector of cell IDs `cells` to extract values very quickly and save
+them as a new column in the data.frame `master_predict`.
 
 ``` r
 mastergrid_predict[cells, 'bra_viirs_100m_2016'] <- raster_covariate[cells]
@@ -1168,9 +1189,9 @@ demonstrate parallel processing using the EA-level data in
 you are comfortable with the process, it can also be applied to the much
 larger data set in `mastergrid_predict`.
 
-For this task we will need the `doParallel` R package ([Corporation &
-Weston 2020](#ref-microsoft2020doParallel)) so we will start by
-installing and loading that package.
+For this task we will need the `doParallel` R package
+\[@microsoft2020doParallel\] so we will start by installing and loading
+that package.
 
 ``` r
 install.packages('doParallel')
@@ -1325,117 +1346,10 @@ errors or misstatements, they should contact WorldPop at
 <div id="refs" class="references csl-bib-body hanging-indent"
 line-spacing="2">
 
-<div id="ref-bondarenko2018" class="csl-entry">
-
-Bondarenko M, Nieves J, Sorichetta A, Stevens FR, Gaughan AE, Tatem A,
-others. 2018. *<span class="nocase">wpgpRFPMS: WorldPop Random Forests
-population modelling R scripts, version 0.1.0</span>*. WorldPop,
-University of Southampton.
-doi:[10.5258/SOTON/WP00665](https://doi.org/10.5258/SOTON/WP00665).
-<https://github.com/wpgp/wpgpRFPMS>.
-
-</div>
-
 <div id="ref-breiman2001" class="csl-entry">
 
 Breiman L. 2001. Random forests. *Machine learning* 45:5–32.
 doi:[10.1023/A:1010933404324](https://doi.org/10.1023/A:1010933404324).
-
-</div>
-
-<div id="ref-microsoft2020doParallel" class="csl-entry">
-
-Corporation M, Weston S. 2020. *doParallel: Foreach parallel adaptor for
-the ’parallel’ package*.
-<https://CRAN.R-project.org/package=doParallel>.
-
-</div>
-
-<div id="ref-bastan2020exactextractr" class="csl-entry">
-
-Daniel Baston. 2020. *<span class="nocase">exactextractr</span>: Fast
-extraction from raster datasets using polygons*.
-<https://CRAN.R-project.org/package=exactextractr>.
-
-</div>
-
-<div id="ref-genuer2010" class="csl-entry">
-
-Genuer R, Poggi J-M, Tuleau-Malot C. 2010. Variable selection using
-random forests. *Pattern recognition letters* 31:2225–2236.
-doi:[10.1016/j.patrec.2010.03.014](https://doi.org/10.1016/j.patrec.2010.03.014).
-
-</div>
-
-<div id="ref-hijmans2020raster" class="csl-entry">
-
-Hijmans RJ. 2020. *<span class="nocase">raster</span>: Geographic data
-analysis and modeling*. <https://CRAN.R-project.org/package=raster>.
-
-</div>
-
-<div id="ref-ibge2019brazilian" class="csl-entry">
-
-IBGE. 2019. *Brazilian territorial division, 2019 edition*. Brazilian
-Institute of Geography and Environment (IBGE).
-<https://www.ibge.gov.br/en/geosciences/territorial-organization/regional-division/23708-brazilian-territorial-division.html?=&t=o-que-e>.
-
-</div>
-
-<div id="ref-ibge2020meshes" class="csl-entry">
-
-IBGE. 2020b. *Meshes of census sectors intra-municipal divisions*.
-Brazilian Institute of Geography and Environment (IBGE).
-<http://geoftp.ibge.gov.br/organizacao_do_territorio/malhas_territoriais/malhas_de_setores_censitarios__divisoes_intramunicipais/2019/Malha_de_setores_(shp)_Brasil/>.
-
-</div>
-
-<div id="ref-ibge2020population" class="csl-entry">
-
-IBGE. 2020a. *Population estimates - tables 2020*. Brazilian Institute
-of Geography and Environment (IBGE).
-<https://www.ibge.gov.br/en/statistics/social/18448-population-estimates.html?=&t=resultados>.
-
-</div>
-
-<div id="ref-law2018" class="csl-entry">
-
-Liaw A, Wiener M. 2002. Classification and regression by randomForest.
-*R News* 2:18–22. <https://cran.r-project.org/package=randomForest>.
-
-</div>
-
-<div id="ref-lloyd2019global" class="csl-entry">
-
-Lloyd CT, Chamberlain H, Kerr D, Yetman G, Pistolesi L, Stevens FR,
-Gaughan AE, Nieves JJ, Hornby G, MacManus K, others. 2019. Global
-spatio-temporally harmonised datasets for producing high-resolution
-gridded population distribution datasets. *Big earth data* 3:108–139.
-
-</div>
-
-<div id="ref-lloyd2017high" class="csl-entry">
-
-Lloyd CT, Sorichetta A, Tatem AJ. 2017. High resolution global gridded
-data for use in population studies. *Scientific data* 4:1–17.
-
-</div>
-
-<div id="ref-pebesma2018simple" class="csl-entry">
-
-Pebesma E. 2018. <span class="nocase">Simple Features for R:
-Standardized Support for Spatial Vector Data</span>. *The R Journal*
-10:439–446.
-doi:[10.32614/RJ-2018-009](https://doi.org/10.32614/RJ-2018-009).
-<https://doi.org/10.32614/RJ-2018-009>.
-
-</div>
-
-<div id="ref-r2020r" class="csl-entry">
-
-R Core Team. 2020. *R: A language and environment for statistical
-computing*. Vienna, Austria: R Foundation for Statistical Computing.
-<https://www.R-project.org/>.
 
 </div>
 
@@ -1455,25 +1369,6 @@ Stevens FR, Gaughan AE, Linard C, Tatem AJ. 2015. Disaggregating census
 data for population mapping using random forests with remotely-sensed
 and ancillary data. *PLOS ONE* 10:e0107042.
 doi:[10.1371/journal.pone.0107042](https://doi.org/10.1371/journal.pone.0107042).
-
-</div>
-
-<div id="ref-worldpop2018geospatial" class="csl-entry">
-
-WorldPop, CIESIN. 2018b. *<span class="nocase">Geospatial covariate data
-layers: VIIRS night-time lights (2012-216), Brazil</span>*. WorldPop,
-University of Southampton.
-doi:[10.5258/SOTON/WP00644](https://doi.org/10.5258/SOTON/WP00644).
-<ftp://ftp.worldpop.org/GIS/Covariates/Global_2000_2020/BRA/VIIRS/>.
-
-</div>
-
-<div id="ref-worldpop2018mastergrid" class="csl-entry">
-
-WorldPop, CIESIN. 2018a. *Administrative Areas: National Boundaries,
-Brazil*. WorldPop, University of Southampton.
-doi:[10.5258/SOTON/WP00651](https://doi.org/10.5258/SOTON/WP00651).
-<ftp://ftp.worldpop.org/GIS/Mastergrid/Global_2000_2020/BRA/L0/>.
 
 </div>
 

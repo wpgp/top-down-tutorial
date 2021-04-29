@@ -5,7 +5,8 @@ date: "`r Sys.Date()`"
 header-includes:
    - \usepackage{amsmath}
 output: 
-  bookdown::github_document2
+  bookdown::github_document2:
+    toc: true
 bibliography: top-down-tutorial.bib
 link-citations: yes
 csl: worldpop.csl
