@@ -5,14 +5,12 @@ date: "`r Sys.Date()`"
 header-includes:
    - \usepackage{amsmath}
 output: 
-  bookdown::github_document2:
+  bookdown::html_document2:
     toc: true
+    toc_float: true
 bibliography: top-down-tutorial.bib
 link-citations: yes
 csl: worldpop.csl
-editor_options: 
-  markdown: 
-    wrap: 72
 ---
 
 # Introduction
@@ -67,7 +65,7 @@ The following pre-requisite skills may be helpful:
 
 # Background
 
-The modelling process consists of three steps (Fig. @ref(fig:schema)):
+The modelling process consists of three steps (Fig. \@ref(fig:schema)):
 
 1.  Estimate the relationship between population density and geospatial
     covariates at the municipality level,
@@ -109,9 +107,9 @@ sets of covariates without *a priori* variable selection. However, a
 large number of covariates might impact running time, especially at the
 prediction stage, and it may be useful to select a subset of covariates
 based on the measures of covariate importance provided by the random
-forest algorithm [\@stevens2015; \@bondarenko2018]. While random forest
+forest algorithm [@stevens2015; @bondarenko2018]. While random forest
 predictions are robust to multi-collinearity among covariates, the
-measures of covariate importance may not be [\@genuer2010].
+measures of covariate importance may not be [@genuer2010].
 
 To dive deeper on the subject of random forest, here are some online
 materials:
@@ -132,15 +130,15 @@ materials:
     from Breiman explaining the underlying maths.
 
 The implementation we will provide in this tutorial will follow the
-guidance set up by Bondarenko et al. [-\@bondarenko2018] to apply random
+guidance set up by Bondarenko et al. [-@bondarenko2018] to apply random
 forest for top-down disaggregation.
 
 # R Environment
 
-This model will be implemented in the R programming language [\@r2020r].
+This model will be implemented in the R programming language [@r2020r].
 Our first step is to setup the R environment so that it contains the R
 packages and data that we will need. The `randomForest` package
-[\@law2018] implements the random forest algorithm in R. If you have not
+[@law2018] implements the random forest algorithm in R. If you have not
 already installed it, then you will need to install it.
 
 ```{r, eval=F}
@@ -222,23 +220,23 @@ contained the majority of its area.
 
 1.  Brazil's [municipality
     boundaries](https://www.ibge.gov.br/en/geosciences/territorial-organization/regional-division/23708-brazilian-territorial-division.html?=&t=o-que-e)
-    [\@ibge2019brazilian],
+    [@ibge2019brazilian],
 
 2.  Brazil's [2020 census
     projections](https://www.ibge.gov.br/en/statistics/social/18448-population-estimates.html?=&t=resultados)
-    for municipalities [\@ibge2020population],
+    for municipalities [@ibge2020population],
 
 3.  Brazil's [census EA
     boundaries](http://geoftp.ibge.gov.br/organizacao_do_territorio/malhas_territoriais/malhas_de_setores_censitarios__divisoes_intramunicipais/2019/Malha_de_setores_(shp)_Brasil/)
-    [\@ibge2020meshes],
+    [@ibge2020meshes],
 
 4.  WorldPop's
     [mastergrid](ftp://ftp.worldpop.org/GIS/Mastergrid/Global_2000_2020/BRA/L0/)
-    for Brazil [\@worldpop2018mastergrid], and
+    for Brazil [@worldpop2018mastergrid], and
 
 5.  WorldPop's [geospatial covariate
     rasters](ftp://ftp.worldpop.org/GIS/Covariates/Global_2000_2020/BRA/)
-    for Brazil [\@lloyd2019global; \@lloyd2017high].
+    for Brazil [@lloyd2019global; @lloyd2017high].
 
 See the section [Zonal Statistics] for more information about how the
 input data were created.
@@ -268,7 +266,7 @@ population counts for two main reasons. First, population densities are
 more comparable than counts among spatial units of varying sizes (e.g.
 municipalities and EAs). Second, the logarithm transformation reshapes
 the response variable as a Gaussian distribution, better inline with the
-distributions of covariates [\@stevens2015] (Fig. \@ref(fig:hist)). Note
+distributions of covariates [@stevens2015] (Fig. \@ref(fig:hist)). Note
 that `master_train$area` is measured in square meters in this case but
 any unit of area will work.
 
@@ -356,7 +354,7 @@ count of observations (i.e. `r nrow(master_train)` municipalities) and
 data.
 
 Our specifications for other parameters follow Bondarenko et al.
-[-\@bondarenko2018].
+[-@bondarenko2018].
 
 -   **ntree**: Number of trees to grow. There is no issue of overfitting
     when adding additional trees. We opt for 500, the default value of
@@ -448,9 +446,10 @@ master_predict$predicted <- predict(popfit,
 The weights are then calculated from the model predictions using the
 following formula:
 
-\\begin{equation} weight\_{i} =
-\\frac{exp(predicted\_{i})}{\\sum\_{i=1}^{I_j}{exp(predicted\_{i})}}
-(\#eq:weights) \\end{equation}
+\begin{equation} 
+weight_{i} = \frac{exp(predicted_{i})}{\sum_{i=1}^{I_j}{exp(predicted_{i})}}
+(\#eq:weights) 
+\end{equation}
 
 where $predicted_i$ is the model prediction for enumeration area $i$,
 and $I_j$ is the total number of enumeration areas in municipality $j$.
@@ -462,8 +461,10 @@ municipality $j$ that lives in enumeration area $i$.
 We will now use the weights to estimate the population for each
 enumeration area $i$ using the following formula:
 
-\\begin{equation} population\_{i} = total_j \\times weight\_{i}
-(\#eq:prediction) \\end{equation}
+\begin{equation} 
+population_{i} = total_j \times weight_{i}
+(\#eq:prediction) 
+\end{equation}
 
 where $total_j$ is the population total for municipality $j$ and
 $weight_i$ is the proportion of the population that lives in enumeration
@@ -660,7 +661,7 @@ enumeration area polygons (as in this tutorial) would provide greater
 flexibility for aggregating units to match the spatial units of the
 independent validation data.
 
-The second option is discussed by Stevens et al. [-\@stevens2015]. Its
+The second option is discussed by Stevens et al. [-@stevens2015]. Its
 effectiveness depends on the size of the aggregated training dataset
 (e.g. the number of states). Indeed a coarser scale means a decreasing
 number of input observations, which undermines the quantity of
@@ -707,7 +708,7 @@ underestimated for large groups of correlated predictor variables.
 
     If running time becomes an issue, there are several solutions that
     are outlined in the random forest set-up of Bondarenko et al.
-    [-\@bondarenko2018].
+    [-@bondarenko2018].
 
     If the model takes too long to be fitted, one can play with the
     parameter `sampsize`, which has a great impact on modelling time or
@@ -716,7 +717,7 @@ underestimated for large groups of correlated predictor variables.
     goodness-of-fit metrics.
 
     If the prediction takes too much time, Stevens et al.
-    [-\@stevens2015] proposes to prune the number of covariates based on
+    [-@stevens2015] proposes to prune the number of covariates based on
     their importance metric. We have also provided an example of how to
     generate predictions more efficiently using parallel processing (see
     [Parallel Processing] section below).
@@ -781,15 +782,15 @@ from their original sources. These source files are:
 
 1.  [Enumeration area
     boundaries](http://geoftp.ibge.gov.br/organizacao_do_territorio/malhas_territoriais/malhas_de_setores_censitarios__divisoes_intramunicipais/2019/Malha_de_setores_(shp)_Brasil/)
-    for Brazil [\@ibge2020meshes],
+    for Brazil [@ibge2020meshes],
 
 2.  [VIIRS nighttime
     lights](ftp://ftp.worldpop.org/GIS/Covariates/Global_2000_2020/BRA/VIIRS/)
-    from 2016 [\@worldpop2018geospatial], and
+    from 2016 [@worldpop2018geospatial], and
 
 3.  [WorldPop
     mastergrid](ftp://ftp.worldpop.org/GIS/Mastergrid/Global_2000_2020/BRA/L0/)
-    for Brazil [\@worldpop2018mastergrid].
+    for Brazil [@worldpop2018mastergrid].
 
 **Note:** The code below will assume that these source files have been
 downloaded and unzipped (if applicable) into your working directory.
@@ -802,7 +803,7 @@ section [Redistribution to EA-level] above) to polygon features for use
 with GIS software (e.g. Esri polygon shapefile).
 
 For this step, we will need to install and load the `sf` package
-[\@pebesma2018simple] to read and manipulate GIS vector data (census
+[@pebesma2018simple] to read and manipulate GIS vector data (census
 EAs, in this case).
 
 ```{r, eval=F}
@@ -813,7 +814,7 @@ library('sf')
 Then, we need to load a vector GIS data set containing the polygons that
 we would like to join our model results to. For this example, we are
 using Brazilian census enumeration area polygons which are openly
-available online as a polygon shapefile [\@ibge2020meshes].
+available online as a polygon shapefile [@ibge2020meshes].
 
 ```{r, eval=F}
 sf_polygons <- st_read('BR_Setores_2019.shp')
@@ -869,7 +870,7 @@ deviation, min, max). We will give a brief demonstration of how to do
 this.
 
 We will rely on the `raster` and `exactextractr` packages
-[\@hijmans2020raster; \@bastan2020exactextractr] for this step and so we
+[@hijmans2020raster; @bastan2020exactextractr] for this step and so we
 will first install and load those packages:
 
 ```{r, eval=F}
@@ -881,7 +882,7 @@ library('exactextractr')
 We already have polygon features `sf_polygons` loaded from the previous
 section ([Map Results]). We will also need to load a covariate raster.
 We will use a nighttime lights raster for Brazil that is openly
-available [\@worldpop2018geospatial].
+available [@worldpop2018geospatial].
 
 ```{r, eval=F}
 raster_covariate <- raster('bra_viirs_100m_2016.tif')
@@ -953,7 +954,7 @@ mastergrid <- raster('bra_level0_100m_2000_2020.tif')
 ```
 
 This mastergrid raster for Brazil is publicly available from WorldPop
-[-\@worldpop2018mastergrid]. In this mastergrid, any cells that contain
+[-@worldpop2018mastergrid]. In this mastergrid, any cells that contain
 a value of NA are outside of Brazil.
 
 Cell IDs for a raster are a numerical sequence starting from 1 in the
@@ -983,7 +984,7 @@ mastergrid_predict <- data.frame(row.names = cells)
 ```
 
 Next, we will use the same covariate raster `raster_covariate` from the
-previous section ([Zonal Statistics]) [\@worldpop2018geospatial]. This
+previous section ([Zonal Statistics]) [@worldpop2018geospatial]. This
 raster has the exact same extent and cell size as the mastergrid.
 Because the two rasters have identical extent and cell size, their cell
 IDs are comparable allowing us to use our vector of cell IDs `cells` to
@@ -1077,7 +1078,7 @@ it can also be applied to the much larger data set in
 `mastergrid_predict`.
 
 For this task we will need the `doParallel` R package
-[\@microsoft2020doParallel] so we will start by installing and loading
+[@microsoft2020doParallel] so we will start by installing and loading
 that package.
 
 ```{r, eval=F}
